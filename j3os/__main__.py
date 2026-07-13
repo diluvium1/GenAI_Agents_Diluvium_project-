@@ -4,13 +4,16 @@ Usage:
     python -m j3os brands
     python -m j3os engines
     python -m j3os knowledge glass-and-counsel [--doc 03_ICP] [--search term]
-    python -m j3os editorial glass-and-counsel --topic "..." [--stages a,b] [--dry-run]
+    python -m j3os editorial glass-and-counsel --topic "..." [--stages a,b] [--dry-run] [--web]
+    python -m j3os grade glass-and-counsel [run_dir] [--dry-run]
+    python -m j3os batch glass-and-counsel --calendar PATH [--stages a,b] [--dry-run]
 """
 
 from __future__ import annotations
 
 import argparse
 import sys
+from pathlib import Path
 
 from j3os.core.brand import Brand, discover_brands
 from j3os.core.engine import default_registry
@@ -58,10 +61,49 @@ def cmd_editorial(args: argparse.Namespace) -> int:
 
     brand = Brand.load(args.brand)
     stages = args.stages.split(",") if args.stages else None
-    result = run_pipeline(brand, args.topic, stages=stages, dry_run=args.dry_run)
+    result = run_pipeline(
+        brand, args.topic, stages=stages, dry_run=args.dry_run, web_research=args.web
+    )
     print(f"Wrote {len(result.artifacts)} artifacts to {result.output_dir}")
     for key in result.artifacts:
         print(f"  - {key}")
+    return 0
+
+
+def cmd_grade(args: argparse.Namespace) -> int:
+    from j3os.engines.editorial.review import review_latest, review_run
+
+    brand = Brand.load(args.brand)
+    dry_run = args.dry_run or None
+    try:
+        if args.run_dir:
+            result = review_run(brand, Path(args.run_dir), dry_run=dry_run)
+        else:
+            result = review_latest(brand, dry_run=dry_run)
+    except FileNotFoundError as exc:
+        print(f"Nothing to grade: {exc}")
+        return 1
+    print(f"Scorecard: {result.scorecard_path}")
+    for stage, review in result.reviews.items():
+        score = review.score if review.score is not None else "n/a"
+        print(f"  {stage:20} {score}")
+    return 0
+
+
+def cmd_batch(args: argparse.Namespace) -> int:
+    from j3os.engines.editorial.batch import load_calendar, run_calendar
+
+    brand = Brand.load(args.brand)
+    stages = args.stages.split(",") if args.stages else None
+    try:
+        topics = load_calendar(Path(args.calendar))
+        result = run_calendar(
+            brand, topics, stages=stages, dry_run=args.dry_run or None
+        )
+    except (ValueError, FileNotFoundError) as exc:
+        print(f"Batch failed: {exc}")
+        return 1
+    print(f"Wrote {len(result.artifacts)} topics to {result.output_dir}")
     return 0
 
 
@@ -106,7 +148,38 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Render prompts without calling the Claude API",
     )
+    p_ed.add_argument(
+        "--web",
+        action="store_true",
+        help="Ground the research stage with live web search (needs a live key)",
+    )
     p_ed.set_defaults(func=cmd_editorial)
+
+    p_grade = sub.add_parser("grade", help="Grade a run against the editorial standards")
+    p_grade.add_argument("brand")
+    p_grade.add_argument(
+        "run_dir", nargs="?", help="Run directory to grade (default: latest run)"
+    )
+    p_grade.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Render grading prompts without calling the Claude API",
+    )
+    p_grade.set_defaults(func=cmd_grade)
+
+    p_batch = sub.add_parser("batch", help="Run a content calendar through the Batches API")
+    p_batch.add_argument("brand")
+    p_batch.add_argument("--calendar", required=True, help="Path to a calendar JSON file")
+    p_batch.add_argument(
+        "--stages",
+        help=f"Comma-separated subset of stages. Valid: {','.join(STAGE_KEYS)}",
+    )
+    p_batch.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Render prompts without calling the Claude API",
+    )
+    p_batch.set_defaults(func=cmd_batch)
 
     p_srv = sub.add_parser("serve", help="Run the live web console (FastAPI + SSE)")
     p_srv.add_argument("--host", default="127.0.0.1")

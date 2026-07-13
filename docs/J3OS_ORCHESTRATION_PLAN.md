@@ -41,13 +41,16 @@ engines (`j3os/engines/`), and per-brand knowledge (`j3os/brands/<slug>/`).
 
 - [x] Live web console (`python -m j3os serve`): FastAPI + SSE streaming of
       pipeline runs, with per-stage progress events and `manifest.json`
-- [ ] Live pipeline run for 3 real Glass & Counsel topics; grade outputs
-      against `04_EDITORIAL.md` and tighten stage instructions
+- [x] Grading engine (`review.py` + `python -m j3os grade`): scores each
+      stage against `04_EDITORIAL.md` and writes `scorecard.md` + `scores.json`
+      into the run's `review/` folder
+  - [ ] Run + grade 3 real topics with a live key
 - [ ] Structured artifact metadata (JSON sidecars: keywords, products,
       channel targets) so downstream automation can consume the kit
-- [ ] Web-search-grounded research stage (server-side `web_search` tool)
-- [ ] Batch mode: run a content calendar (N topics) through the Batches API
-      at 50% cost
+- [x] Web-search-grounded research stage (server-side `web_search` tool,
+      opt-in via `python -m j3os editorial ... --web`)
+- [x] Batch mode (`batch.py` + `python -m j3os batch`): run a content
+      calendar (N topics) through the Batches API at 50% cost
 
 ## Loop 3 — Commerce + Automation (Phase 2 engines)
 

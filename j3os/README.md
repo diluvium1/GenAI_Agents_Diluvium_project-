@@ -84,6 +84,26 @@ to dry-run mode (rendering the grounded prompts only). Views: Production
 (run + live timeline), Knowledge (browse/search the brand docs), and Runs
 (replay any past run's event stream).
 
+## Grading & batch production
+
+```bash
+# Grade the latest run against the editorial standards (04_EDITORIAL.md)
+python -m j3os grade glass-and-counsel
+
+# Web-search-grounded research stage (live key required)
+python -m j3os editorial glass-and-counsel \
+    --topic "The 5-minute desk reset for associates" --web
+
+# Run a whole content calendar via the Batches API (50% cost;
+# falls back to dry-run without a key)
+python -m j3os batch glass-and-counsel \
+    --calendar j3os/brands/glass-and-counsel/calendar.example.json
+```
+
+`grade` scores each stage against the brand's editorial guidelines and writes
+a `scorecard.md` plus `scores.json` into the run's `review/` folder. `batch`
+fans a calendar of topics through the pipeline in one Batches API job.
+
 ## Tests
 
 ```bash
