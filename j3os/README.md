@@ -69,7 +69,20 @@ python -m j3os editorial glass-and-counsel \
 ```
 
 Artifacts are written to `j3os/brands/<slug>/output/<timestamp>-<topic>/`,
-one markdown file per stage.
+one markdown file per stage, plus a `manifest.json` describing the run.
+
+## Live console
+
+```bash
+python -m j3os serve            # → http://127.0.0.1:8300
+```
+
+A web console that runs the pipeline for real and streams every stage's
+output to the browser token-by-token over Server-Sent Events. With
+`ANTHROPIC_API_KEY` set the console runs live; without it, it falls back
+to dry-run mode (rendering the grounded prompts only). Views: Production
+(run + live timeline), Knowledge (browse/search the brand docs), and Runs
+(replay any past run's event stream).
 
 ## Tests
 

@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>J3OS Console — Live</title>
+<style>
+  :root{
+    --ground:#F4F1E9; --card:#FBFAF6; --ink:#211F1A; --muted:#8A857A;
+    --hair:#DDD8CB; --accent:#3D5B4F; --accent-ink:#FBFAF6;
+    --wash:#ECE8DC; --code:#F0EDE3; --bad:#8C4A3C;
+    --serif:"Didot","Bodoni MT",Georgia,"Times New Roman",serif;
+    --sans:"Helvetica Neue",Helvetica,Arial,sans-serif;
+    --mono:"SF Mono","Cascadia Code",Consolas,Menlo,monospace;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --ground:#191813; --card:#211F19; --ink:#EDE9DE; --muted:#9A9485;
+      --hair:#34312A; --accent:#7FA893; --accent-ink:#14130F;
+      --wash:#26241D; --code:#1E1C16; --bad:#C58273;
+    }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--sans);
+    font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased}
+  .frame{max-width:1120px;margin:0 auto;padding:0 28px 96px}
+  button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+  header{border-bottom:1px solid var(--hair);padding-top:34px}
+  .mast{display:flex;align-items:baseline;justify-content:space-between;gap:16px;flex-wrap:wrap}
+  .wordmark{font-family:var(--serif);font-size:34px;margin:0}
+  .wordmark em{font-style:italic;color:var(--accent)}
+  .mode{font-size:10px;letter-spacing:.2em;text-transform:uppercase;padding:5px 11px;border:1px solid var(--hair);color:var(--muted)}
+  .mode.live{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+  nav{display:flex;gap:4px;margin-top:22px;overflow-x:auto}
+  nav button{appearance:none;border:none;background:none;cursor:pointer;font-family:var(--sans);
+    font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);
+    padding:12px 16px 14px;border-bottom:2px solid transparent;white-space:nowrap}
+  nav button:hover{color:var(--ink)}
+  nav button.on{color:var(--ink);border-bottom-color:var(--accent)}
+
+  main{padding-top:40px}
+  .view{display:none}.view.on{display:block}
+  h2.vt{font-family:var(--serif);font-weight:400;font-size:26px;margin:0 0 6px;text-wrap:balance}
+  p.lede{color:var(--muted);max-width:64ch;margin:0 0 30px}
+  .banner{background:var(--card);border:1px solid var(--bad);color:var(--bad);padding:12px 18px;margin-bottom:24px;display:none;font-size:13px}
+
+  .runbar{background:var(--card);border:1px solid var(--hair);padding:22px 24px;margin-bottom:28px;display:grid;gap:16px}
+  .flab{font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:7px}
+  .toprow{display:flex;gap:10px;flex-wrap:wrap}
+  .toprow input[type=text]{flex:1 1 320px;padding:12px 14px;border:1px solid var(--hair);
+    background:var(--ground);color:var(--ink);font-family:var(--serif);font-size:17px}
+  .btn{appearance:none;border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink);
+    font-family:var(--sans);font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;padding:12px 24px;cursor:pointer}
+  .btn:hover{filter:brightness(1.08)} .btn:disabled{opacity:.45;cursor:default}
+  .picks{display:flex;flex-wrap:wrap;gap:7px}
+  .picks button{appearance:none;cursor:pointer;border:1px solid var(--hair);background:var(--ground);
+    color:var(--muted);font-family:var(--mono);font-size:10.5px;padding:6px 11px}
+  .picks button.on{border-color:var(--accent);color:var(--accent)}
+  .drynote{font-size:12px;color:var(--muted);margin:0}
+  .drywrap{display:flex;align-items:center;gap:8px;font-size:13px}
+  .drywrap input{accent-color:var(--accent)}
+
+  ol.tl{list-style:none;margin:0;padding:0}
+  ol.tl>li{position:relative;padding-left:44px;margin-bottom:14px}
+  ol.tl>li::before{content:"";position:absolute;left:13px;top:34px;bottom:-14px;width:1px;background:var(--hair)}
+  ol.tl>li:last-child::before{display:none}
+  .node{position:absolute;left:0;top:6px;width:27px;height:27px;border:1px solid var(--hair);border-radius:50%;
+    background:var(--card);color:var(--muted);font-family:var(--mono);font-size:10px;
+    display:flex;align-items:center;justify-content:center;font-variant-numeric:tabular-nums}
+  li.done .node{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+  li.run .node{border-color:var(--accent);color:var(--accent)}
+  @media (prefers-reduced-motion: no-preference){
+    li.run .node{animation:pulse 1.2s ease-in-out infinite}
+    @keyframes pulse{50%{box-shadow:0 0 0 5px color-mix(in srgb, var(--accent) 22%, transparent)}}
+  }
+  li.fail .node{background:var(--bad);border-color:var(--bad);color:var(--accent-ink)}
+  .scard{background:var(--card);border:1px solid var(--hair)}
+  .shead{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:13px 20px;flex-wrap:wrap}
+  .shead h3{font-family:var(--serif);font-weight:400;font-size:18px;margin:0}
+  .skey{font-family:var(--mono);font-size:10.5px;color:var(--muted)}
+  .sout{display:none;border-top:1px solid var(--hair)}
+  li.run .sout,li.done .sout{display:block}
+  .obar{display:flex;justify-content:space-between;align-items:center;padding:7px 20px}
+  .obar .l{font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted)}
+  .copy{appearance:none;border:1px solid var(--hair);background:none;color:var(--muted);cursor:pointer;
+    font-family:var(--mono);font-size:10px;padding:4px 10px}
+  .copy:hover{color:var(--accent);border-color:var(--accent)}
+  .sout pre{margin:0;background:var(--code);padding:16px 20px;font-family:var(--mono);font-size:11.5px;
+    line-height:1.65;white-space:pre-wrap;max-height:320px;overflow:auto}
+  .runmsg{font-family:var(--mono);font-size:11px;color:var(--muted);margin:0 0 18px}
+  .runmsg.err{color:var(--bad)}
+
+  .k-layout{display:grid;grid-template-columns:250px 1fr;gap:34px}
+  @media(max-width:820px){.k-layout{grid-template-columns:1fr}}
+  .ksearch{width:100%;padding:10px 12px;border:1px solid var(--hair);background:var(--card);color:var(--ink);font-size:13px;margin-bottom:14px}
+  .dlist{list-style:none;margin:0;padding:0;border-top:1px solid var(--hair)}
+  .dlist button{display:block;width:100%;text-align:left;appearance:none;background:none;border:none;
+    border-bottom:1px solid var(--hair);padding:10px 8px;cursor:pointer;color:var(--ink);font-size:13px}
+  .dlist button .id{font-family:var(--mono);font-size:10px;color:var(--muted);display:block}
+  .dlist button:hover{background:var(--wash)}
+  .dlist button.on{background:var(--wash);box-shadow:inset 2px 0 0 var(--accent)}
+  .dlist li.dim button{opacity:.32}
+  article.doc{background:var(--card);border:1px solid var(--hair);padding:40px 44px;max-width:72ch}
+  article.doc h1{font-family:var(--serif);font-weight:400;font-size:28px;margin:0 0 18px}
+  article.doc h2{font-family:var(--serif);font-weight:400;font-size:19px;margin:30px 0 10px}
+  article.doc h3{font-size:12px;letter-spacing:.14em;text-transform:uppercase;margin:24px 0 8px}
+  article.doc table{border-collapse:collapse;margin-bottom:16px;width:100%}
+  article.doc th,article.doc td{border:1px solid var(--hair);padding:7px 11px;text-align:left;font-size:13.5px}
+  article.doc th{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+  article.doc p{max-width:65ch}
+
+  .runslist{list-style:none;margin:0;padding:0;border:1px solid var(--hair);background:var(--card)}
+  .runslist li{border-bottom:1px solid var(--hair)}
+  .runslist li:last-child{border-bottom:none}
+  .runslist button{display:flex;width:100%;gap:14px;justify-content:space-between;align-items:baseline;
+    appearance:none;background:none;border:none;padding:14px 20px;cursor:pointer;color:var(--ink);font-size:13.5px;text-align:left;flex-wrap:wrap}
+  .runslist button:hover{background:var(--wash)}
+  .runslist .t{font-family:var(--serif);font-size:16px}
+  .runslist .meta{font-family:var(--mono);font-size:10.5px;color:var(--muted)}
+  .st{font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;padding:3px 8px;border:1px solid var(--hair);color:var(--muted)}
+  .st.completed{color:var(--accent-ink);background:var(--accent);border-color:var(--accent)}
+  .st.failed{color:var(--accent-ink);background:var(--bad);border-color:var(--bad)}
+
+  footer{margin-top:70px;border-top:1px solid var(--hair);padding-top:18px;font-size:11px;
+    letter-spacing:.14em;text-transform:uppercase;color:var(--muted);display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px}
+</style>
+</head>
+<body>
+<div class="frame">
+  <header>
+    <div class="mast">
+      <h1 class="wordmark">J3OS <em id="brandname">/ …</em></h1>
+      <span class="mode" id="mode">connecting…</span>
+    </div>
+    <nav>
+      <button class="on" data-v="prod">Production</button>
+      <button data-v="knowledge">Knowledge</button>
+      <button data-v="runs">Runs</button>
+    </nav>
+  </header>
+  <main>
+    <div class="banner" id="banner">Server not reachable — start it with <span style="font-family:var(--mono)">python -m j3os serve</span></div>
+
+    <section class="view on" id="v-prod">
+      <h2 class="vt">Run the editorial pipeline.</h2>
+      <p class="lede">One topic in, a full multi-channel asset kit out — streamed live, stage by stage,
+      grounded in the brand knowledge base.</p>
+      <div class="runbar">
+        <div>
+          <label class="flab" for="topic">Topic</label>
+          <div class="toprow">
+            <input id="topic" type="text" value="The 5-minute desk reset for associates">
+            <button class="btn" id="run">Run pipeline</button>
+          </div>
+        </div>
+        <div>
+          <span class="flab">Stages</span>
+          <div class="picks" id="picks"></div>
+        </div>
+        <div class="drywrap">
+          <input type="checkbox" id="dry"><label for="dry">Dry run (render prompts only — no tokens spent)</label>
+        </div>
+        <p class="drynote" id="drynote"></p>
+      </div>
+      <p class="runmsg" id="runmsg"></p>
+      <ol class="tl" id="tl"></ol>
+    </section>
+
+    <section class="view" id="v-knowledge">
+      <h2 class="vt">The permanent source of truth.</h2>
+      <p class="lede">System 01 — every generation is grounded in these documents.</p>
+      <div class="k-layout">
+        <aside>
+          <input class="ksearch" id="ksearch" type="search" placeholder="Search the knowledge base…">
+          <ul class="dlist" id="dlist"></ul>
+        </aside>
+        <article class="doc" id="docview"></article>
+      </div>
+    </section>
+
+    <section class="view" id="v-runs">
+      <h2 class="vt">Past runs.</h2>
+      <p class="lede">Every run this server has executed. Select one to replay its full event stream.</p>
+      <ul class="runslist" id="runslist"></ul>
+    </section>
+  </main>
+  <footer>
+    <span>J3OS live console</span><span>Never loud. Never trendy. Always timeless.</span>
+  </footer>
+</div>
+
+<script>
+"use strict";
+const $=id=>document.getElementById(id);
+const esc=s=>s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+let STATUS=null, STAGES=[], BRAND=null, selected=new Set(), DOCS=[], curDoc=0, activeES=null;
+
+/* nav */
+document.querySelectorAll("nav button").forEach(b=>b.addEventListener("click",()=>{
+  document.querySelectorAll("nav button").forEach(x=>x.classList.toggle("on",x===b));
+  document.querySelectorAll(".view").forEach(v=>v.classList.remove("on"));
+  $("v-"+b.dataset.v).classList.add("on");
+  if(b.dataset.v==="runs")loadRuns();
+}));
+
+/* boot */
+async function boot(){
+  try{
+    STATUS=await (await fetch("/api/status")).json();
+    STAGES=(await (await fetch("/api/pipeline/stages")).json()).stages;
+  }catch(e){ $("banner").style.display="block"; $("mode").textContent="offline"; return; }
+  BRAND=STATUS.brands[0];
+  $("brandname").textContent="/ "+BRAND.display_name;
+  const live=!STATUS.dry_run_default;
+  $("mode").textContent=live?"live":"dry run";
+  $("mode").classList.toggle("live",live);
+  $("dry").checked=STATUS.dry_run_default;
+  $("drynote").textContent=live
+    ? "API key detected — live runs generate real content with Claude."
+    : "No API key detected on the server — dry run renders the grounded prompts only.";
+  selected=new Set(STAGES.map(s=>s.key));
+  drawPicks();
+  const docs=await (await fetch("/api/knowledge/"+BRAND.slug)).json();
+  DOCS=docs.docs; drawDocList(); drawDoc();
+}
+function drawPicks(){
+  $("picks").innerHTML=STAGES.map(s=>`<button class="${selected.has(s.key)?"on":""}" data-k="${s.key}">${s.key}</button>`).join("");
+  $("picks").querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>{
+    const k=b.dataset.k; selected.has(k)?selected.delete(k):selected.add(k); drawPicks();
+  }));
+}
+
+/* production run */
+function stageIndex(k){return STAGES.findIndex(s=>s.key===k)}
+function buildTimeline(keys){
+  $("tl").innerHTML=STAGES.filter(s=>keys.includes(s.key)).map(s=>{
+    const ix=stageIndex(s.key)+1;
+    return `<li id="st-${s.key}">
+      <span class="node">${String(ix).padStart(2,"0")}</span>
+      <div class="scard">
+        <div class="shead"><h3>${esc(s.title)}</h3><span class="skey" id="k-${s.key}">${String(ix).padStart(2,"0")}_${s.key}.md</span></div>
+        <div class="sout">
+          <div class="obar"><span class="l">Output</span><button class="copy" data-k="${s.key}">copy</button></div>
+          <pre id="out-${s.key}"></pre>
+        </div>
+      </div></li>`;
+  }).join("");
+  $("tl").querySelectorAll(".copy").forEach(b=>b.addEventListener("click",()=>{
+    navigator.clipboard&&navigator.clipboard.writeText($("out-"+b.dataset.k).textContent)
+      .then(()=>{b.textContent="copied";setTimeout(()=>b.textContent="copy",1200)});
+  }));
+}
+function attach(jobId,keys){
+  if(activeES)activeES.close();
+  buildTimeline(keys);
+  $("runmsg").className="runmsg";
+  $("runmsg").textContent="run "+jobId+" — streaming…";
+  const es=new EventSource("/api/runs/"+jobId+"/events?start=0");
+  activeES=es;
+  es.onmessage=m=>{
+    const ev=JSON.parse(m.data);
+    if(ev.event==="stage_started"){
+      const li=$("st-"+ev.stage); if(li)li.classList.add("run");
+    }else if(ev.event==="text"){
+      const pre=$("out-"+ev.stage);
+      if(pre){pre.textContent+=ev.delta; pre.scrollTop=pre.scrollHeight;}
+    }else if(ev.event==="stage_completed"){
+      const li=$("st-"+ev.stage);
+      if(li){li.classList.remove("run");li.classList.add("done");}
+      const k=$("k-"+ev.stage); if(k)k.textContent+=" · "+ev.chars.toLocaleString()+" chars";
+    }else if(ev.event==="run_completed"){
+      $("runmsg").textContent="run "+jobId+" — completed · "+ev.output_dir;
+    }else if(ev.event==="job_done"){
+      if(ev.status==="failed"){
+        $("runmsg").className="runmsg err";
+        $("runmsg").textContent="run "+jobId+" — failed: "+(ev.error||"unknown error");
+        document.querySelectorAll("#tl li.run").forEach(li=>{li.classList.remove("run");li.classList.add("fail");});
+      }
+      es.close(); $("run").disabled=false;
+    }
+  };
+  es.onerror=()=>{es.close();$("run").disabled=false;};
+}
+$("run").addEventListener("click",async()=>{
+  const topic=$("topic").value.trim();
+  if(!topic||!BRAND)return;
+  $("run").disabled=true;
+  const keys=STAGES.map(s=>s.key).filter(k=>selected.has(k));
+  try{
+    const r=await fetch("/api/runs",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({brand:BRAND.slug,topic,stages:keys,dry_run:$("dry").checked})});
+    if(!r.ok){const d=await r.json();throw new Error(d.detail||r.status);}
+    const job=await r.json();
+    attach(job.job_id,keys);
+  }catch(e){
+    $("runmsg").className="runmsg err";
+    $("runmsg").textContent="could not start run: "+e.message;
+    $("run").disabled=false;
+  }
+});
+
+/* knowledge */
+function inline(s){return esc(s).replace(/\*\*(.+?)\*\*/g,"<b>$1</b>")}
+function renderMd(md){
+  const L=md.split("\n");let out=[],i=0;
+  while(i<L.length){const l=L[i];
+    if(/^### /.test(l)){out.push("<h3>"+inline(l.slice(4))+"</h3>");i++;continue}
+    if(/^## /.test(l)){out.push("<h2>"+inline(l.slice(3))+"</h2>");i++;continue}
+    if(/^# /.test(l)){out.push("<h1>"+inline(l.slice(2))+"</h1>");i++;continue}
+    if(/^\| /.test(l)){const rows=[];while(i<L.length&&/^\|/.test(L[i])){rows.push(L[i]);i++}
+      const c=r=>r.split("|").slice(1,-1).map(x=>x.trim());
+      let h="<table><thead><tr>"+c(rows[0]).map(x=>"<th>"+inline(x)+"</th>").join("")+"</tr></thead><tbody>";
+      rows.slice(2).forEach(r=>{h+="<tr>"+c(r).map(x=>"<td>"+inline(x)+"</td>").join("")+"</tr>"});
+      out.push(h+"</tbody></table>");continue}
+    if(/^- /.test(l)){let it=[];while(i<L.length&&/^- /.test(L[i])){it.push(L[i].slice(2));i++}
+      out.push("<ul>"+it.map(x=>"<li>"+inline(x)+"</li>").join("")+"</ul>");continue}
+    if(/^\d+\. /.test(l)){let it=[];while(i<L.length&&/^\d+\. /.test(L[i])){it.push(L[i].replace(/^\d+\. /,""));i++}
+      out.push("<ol>"+it.map(x=>"<li>"+inline(x)+"</li>").join("")+"</ol>");continue}
+    if(l.trim()===""){i++;continue}
+    let p=[l];i++;
+    while(i<L.length&&L[i].trim()!==""&&!/^([#|]|- |\d+\. )/.test(L[i])){p.push(L[i]);i++}
+    out.push("<p>"+inline(p.join(" "))+"</p>");
+  }
+  return out.join("");
+}
+function drawDocList(){
+  const q=$("ksearch").value.trim().toLowerCase();
+  $("dlist").innerHTML=DOCS.map((d,ix)=>{
+    const hit=!q||d.content.toLowerCase().includes(q);
+    return `<li class="${hit?"":"dim"}"><button data-ix="${ix}" class="${ix===curDoc?"on":""}">
+      <span class="id">${d.name}</span>${esc(d.title)}</button></li>`}).join("");
+  $("dlist").querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>{curDoc=+b.dataset.ix;drawDocList();drawDoc()}));
+}
+function drawDoc(){ if(DOCS[curDoc]) $("docview").innerHTML=renderMd(DOCS[curDoc].content); }
+$("ksearch").addEventListener("input",()=>{
+  const q=$("ksearch").value.trim().toLowerCase();
+  if(q){const f=DOCS.findIndex(d=>d.content.toLowerCase().includes(q));if(f>=0)curDoc=f}
+  drawDocList();drawDoc();
+});
+
+/* runs */
+async function loadRuns(){
+  try{
+    const data=await (await fetch("/api/runs")).json();
+    if(!data.runs.length){$("runslist").innerHTML="<li><button disabled>No runs yet.</button></li>";return}
+    $("runslist").innerHTML=data.runs.map(r=>`<li><button data-id="${r.id}" data-st='${JSON.stringify(r.stages)}'>
+      <span><span class="t">${esc(r.topic)}</span><br><span class="meta">${r.id} · ${r.created_at.slice(0,19).replace("T"," ")} · ${r.dry_run?"dry run":"live"}</span></span>
+      <span class="st ${r.status}">${r.status}</span></button></li>`).join("");
+    $("runslist").querySelectorAll("button[data-id]").forEach(b=>b.addEventListener("click",()=>{
+      const keys=JSON.parse(b.dataset.st)||STAGES.map(s=>s.key);
+      document.querySelectorAll("nav button").forEach(x=>x.classList.toggle("on",x.dataset.v==="prod"));
+      document.querySelectorAll(".view").forEach(v=>v.classList.remove("on"));
+      $("v-prod").classList.add("on");
+      attach(b.dataset.id,keys);
+    }));
+  }catch(e){/* banner already shown */}
+}
+boot();
+</script>
+</body>
+</html>

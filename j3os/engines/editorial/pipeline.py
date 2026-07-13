@@ -13,9 +13,11 @@ outputs of the stages before it.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Callable, Optional
 
 from j3os.core import llm
 from j3os.core.brand import Brand
@@ -174,6 +176,9 @@ def _stage_prompt(stage: PipelineStage, topic: str, artifacts: dict[str, str]) -
     return "\n".join(parts)
 
 
+ProgressCallback = Optional[Callable[[dict], None]]
+
+
 def run_pipeline(
     brand: Brand,
     topic: str,
@@ -181,13 +186,22 @@ def run_pipeline(
     stages: list[str] | None = None,
     dry_run: bool | None = None,
     output_root: Path | None = None,
+    progress: ProgressCallback = None,
 ) -> PipelineResult:
     """Run the editorial pipeline for a topic, writing each artifact to
-    the brand's output directory as markdown."""
+    the brand's output directory as markdown.
+
+    ``progress``, when provided, receives event dicts as the run advances:
+    ``run_started``, then per stage ``stage_started`` / ``text`` (streamed
+    deltas) / ``stage_completed``, and finally ``run_completed``. A
+    ``manifest.json`` is written to the output dir and updated after every
+    stage, so a crashed run still leaves a partial manifest.
+    """
     selected = stages or STAGE_KEYS
     unknown = set(selected) - set(STAGE_KEYS)
     if unknown:
         raise ValueError(f"Unknown stages: {sorted(unknown)}. Valid: {STAGE_KEYS}")
+    selected = [k for k in STAGE_KEYS if k in set(selected)]
 
     knowledge = KnowledgeEngine()
     system = knowledge.context_block(brand)
@@ -197,16 +211,88 @@ def run_pipeline(
     out_dir = (output_root or brand.output_dir) / f"{stamp}-{slug}"
     out_dir.mkdir(parents=True, exist_ok=True)
 
+    def emit(event: dict) -> None:
+        if progress is not None:
+            progress(event)
+
+    resolved_dry_run = dry_run if dry_run is not None else llm.is_dry_run()
+    manifest: dict = {
+        "brand": brand.slug,
+        "topic": topic,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "dry_run": resolved_dry_run,
+        "stages": [],
+    }
+
+    def write_manifest() -> None:
+        (out_dir / "manifest.json").write_text(
+            json.dumps(manifest, indent=2), encoding="utf-8"
+        )
+
+    write_manifest()
+    emit(
+        {
+            "event": "run_started",
+            "brand": brand.slug,
+            "topic": topic,
+            "stages": selected,
+            "output_dir": str(out_dir),
+        }
+    )
+
     result = PipelineResult(brand=brand, topic=topic, output_dir=out_dir)
     for index, stage in enumerate(PIPELINE, start=1):
         if stage.key not in selected:
             continue
+        emit(
+            {
+                "event": "stage_started",
+                "stage": stage.key,
+                "index": index,
+                "title": stage.title,
+            }
+        )
+        on_text = None
+        if progress is not None:
+            on_text = lambda delta, key=stage.key: emit(
+                {"event": "text", "stage": key, "delta": delta}
+            )
         prompt = _stage_prompt(stage, topic, result.artifacts)
         content = llm.generate(
-            system, prompt, dry_run=dry_run, max_tokens=stage.max_tokens
+            system,
+            prompt,
+            dry_run=dry_run,
+            max_tokens=stage.max_tokens,
+            on_text=on_text,
         )
         result.artifacts[stage.key] = content
-        (out_dir / f"{index:02d}_{stage.key}.md").write_text(
-            content, encoding="utf-8"
+        filename = f"{index:02d}_{stage.key}.md"
+        path = out_dir / filename
+        path.write_text(content, encoding="utf-8")
+        manifest["stages"].append(
+            {
+                "key": stage.key,
+                "title": stage.title,
+                "file": filename,
+                "chars": len(content),
+            }
         )
+        write_manifest()
+        emit(
+            {
+                "event": "stage_completed",
+                "stage": stage.key,
+                "index": index,
+                "chars": len(content),
+                "path": str(path),
+            }
+        )
+
+    emit(
+        {
+            "event": "run_completed",
+            "artifacts": list(result.artifacts),
+            "output_dir": str(out_dir),
+        }
+    )
     return result

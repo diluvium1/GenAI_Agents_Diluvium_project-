@@ -65,6 +65,22 @@ def cmd_editorial(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_serve(args: argparse.Namespace) -> int:
+    try:
+        import uvicorn
+    except ImportError:
+        print(
+            "The live console needs fastapi and uvicorn: "
+            "pip install -r j3os/requirements.txt"
+        )
+        return 1
+    print(f"J3OS console → http://{args.host}:{args.port}")
+    uvicorn.run(
+        "j3os.server.app:app", host=args.host, port=args.port, reload=args.reload
+    )
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="j3os", description="J3OS — the J3 Labs operating system")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -91,6 +107,12 @@ def main(argv: list[str] | None = None) -> int:
         help="Render prompts without calling the Claude API",
     )
     p_ed.set_defaults(func=cmd_editorial)
+
+    p_srv = sub.add_parser("serve", help="Run the live web console (FastAPI + SSE)")
+    p_srv.add_argument("--host", default="127.0.0.1")
+    p_srv.add_argument("--port", type=int, default=8300)
+    p_srv.add_argument("--reload", action="store_true")
+    p_srv.set_defaults(func=cmd_serve)
 
     args = parser.parse_args(argv)
     return args.func(args)

@@ -39,6 +39,8 @@ engines (`j3os/engines/`), and per-brand knowledge (`j3os/brands/<slug>/`).
 
 ## Loop 2 — Editorial hardening
 
+- [x] Live web console (`python -m j3os serve`): FastAPI + SSE streaming of
+      pipeline runs, with per-stage progress events and `manifest.json`
 - [ ] Live pipeline run for 3 real Glass & Counsel topics; grade outputs
       against `04_EDITORIAL.md` and tighten stage instructions
 - [ ] Structured artifact metadata (JSON sidecars: keywords, products,

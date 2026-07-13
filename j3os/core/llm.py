@@ -16,6 +16,7 @@ pipeline prompts without spending tokens.
 from __future__ import annotations
 
 import os
+from typing import Callable, Optional
 
 MODEL = "claude-opus-4-8"
 MAX_TOKENS = 64000
@@ -31,10 +32,20 @@ def generate(
     *,
     dry_run: bool | None = None,
     max_tokens: int = MAX_TOKENS,
+    on_text: Optional[Callable[[str], None]] = None,
 ) -> str:
-    """Run one generation grounded in the brand knowledge system prompt."""
+    """Run one generation grounded in the brand knowledge system prompt.
+
+    When ``on_text`` is provided (and not in dry-run), it is called with each
+    text delta as the response streams from the API, so a caller can surface
+    progress live. In dry-run mode it is called once with the full rendered
+    string.
+    """
     if dry_run if dry_run is not None else is_dry_run():
-        return f"[dry-run]\n--- system ---\n{system}\n--- prompt ---\n{prompt}"
+        text = f"[dry-run]\n--- system ---\n{system}\n--- prompt ---\n{prompt}"
+        if on_text is not None:
+            on_text(text)
+        return text
 
     import anthropic
 
@@ -54,11 +65,14 @@ def generate(
         ],
         messages=[{"role": "user", "content": prompt}],
     ) as stream:
+        chunks: list[str] = []
+        for delta in stream.text_stream:
+            chunks.append(delta)
+            if on_text is not None:
+                on_text(delta)
         message = stream.get_final_message()
 
     if message.stop_reason == "refusal":
         raise RuntimeError("Claude declined this request (stop_reason=refusal)")
 
-    return "".join(
-        block.text for block in message.content if block.type == "text"
-    )
+    return "".join(chunks)
