@@ -84,6 +84,17 @@ to dry-run mode (rendering the grounded prompts only). Views: Production
 (run + live timeline), Knowledge (browse/search the brand docs), and Runs
 (replay any past run's event stream).
 
+## Zero-install live web app
+
+`j3os/webapp/index.html` is a single-file web app that needs no server and
+no Python: open it in a browser, paste your Anthropic API key (stored only
+in your browser's localStorage, sent only to api.anthropic.com), and run
+the full pipeline live — streaming output, token/cost meter, per-stage and
+whole-kit downloads, and an editor-in-chief "Grade this kit" pass. It calls
+the API directly from the browser via Anthropic's CORS support
+(`anthropic-dangerous-direct-browser-access`). Host it anywhere static
+(GitHub Pages, Netlify) or just double-click the file.
+
 ## Grading & batch production
 
 ```bash

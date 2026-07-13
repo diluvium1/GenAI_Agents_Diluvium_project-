@@ -1,0 +1,397 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>J3OS Live — Glass &amp; Counsel</title>
+<style>
+  :root{
+    --ground:#F4F1E9; --card:#FBFAF6; --ink:#211F1A; --muted:#8A857A;
+    --hair:#DDD8CB; --accent:#3D5B4F; --accent-ink:#FBFAF6;
+    --wash:#ECE8DC; --code:#F0EDE3; --bad:#8C4A3C;
+    --serif:"Didot","Bodoni MT",Georgia,"Times New Roman",serif;
+    --sans:"Helvetica Neue",Helvetica,Arial,sans-serif;
+    --mono:"SF Mono","Cascadia Code",Consolas,Menlo,monospace;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --ground:#191813; --card:#211F19; --ink:#EDE9DE; --muted:#9A9485;
+      --hair:#34312A; --accent:#7FA893; --accent-ink:#14130F;
+      --wash:#26241D; --code:#1E1C16; --bad:#C58273;
+    }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--sans);
+    font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased}
+  .frame{max-width:1080px;margin:0 auto;padding:0 28px 96px}
+  button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+  header{border-bottom:1px solid var(--hair);padding:34px 0 24px}
+  .mast{display:flex;align-items:baseline;justify-content:space-between;gap:16px;flex-wrap:wrap}
+  .wordmark{font-family:var(--serif);font-size:34px;margin:0}
+  .wordmark em{font-style:italic;color:var(--accent)}
+  .mode{font-size:10px;letter-spacing:.2em;text-transform:uppercase;padding:5px 11px;border:1px solid var(--hair);color:var(--muted)}
+  .mode.live{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+
+  .panel{background:var(--card);border:1px solid var(--hair);padding:22px 24px;margin-top:28px;display:grid;gap:16px}
+  .flab{font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:7px}
+  .row{display:flex;gap:10px;flex-wrap:wrap}
+  input[type=text],input[type=password]{flex:1 1 300px;padding:12px 14px;border:1px solid var(--hair);
+    background:var(--ground);color:var(--ink);font-size:14px}
+  input[type=text].topic{font-family:var(--serif);font-size:17px}
+  input[type=password]{font-family:var(--mono);font-size:12px}
+  .btn{appearance:none;border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink);
+    font-family:var(--sans);font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;padding:12px 22px;cursor:pointer}
+  .btn.ghost{background:none;color:var(--accent)}
+  .btn:hover{filter:brightness(1.08)} .btn:disabled{opacity:.45;cursor:default}
+  .note{font-size:12px;color:var(--muted);margin:0;max-width:72ch}
+  .note.err{color:var(--bad)}
+  .note.ok{color:var(--accent)}
+  .picks{display:flex;flex-wrap:wrap;gap:7px}
+  .picks button{appearance:none;cursor:pointer;border:1px solid var(--hair);background:var(--ground);
+    color:var(--muted);font-family:var(--mono);font-size:10.5px;padding:6px 11px}
+  .picks button.on{border-color:var(--accent);color:var(--accent)}
+
+  .meter{display:flex;gap:0;border:1px solid var(--hair);background:var(--card);margin-top:24px;flex-wrap:wrap;display:none}
+  .meter.show{display:flex}
+  .m{flex:1 1 120px;padding:12px 18px;border-right:1px solid var(--hair)}
+  .m:last-child{border-right:none}
+  .m .n{font-family:var(--serif);font-size:21px;font-variant-numeric:tabular-nums}
+  .m .l{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+
+  ol.tl{list-style:none;margin:28px 0 0;padding:0}
+  ol.tl>li{position:relative;padding-left:44px;margin-bottom:14px}
+  ol.tl>li::before{content:"";position:absolute;left:13px;top:34px;bottom:-14px;width:1px;background:var(--hair)}
+  ol.tl>li:last-child::before{display:none}
+  .node{position:absolute;left:0;top:6px;width:27px;height:27px;border:1px solid var(--hair);border-radius:50%;
+    background:var(--card);color:var(--muted);font-family:var(--mono);font-size:10px;
+    display:flex;align-items:center;justify-content:center;font-variant-numeric:tabular-nums}
+  li.done .node{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+  li.run .node{border-color:var(--accent);color:var(--accent)}
+  @media (prefers-reduced-motion: no-preference){
+    li.run .node{animation:pulse 1.2s ease-in-out infinite}
+    @keyframes pulse{50%{box-shadow:0 0 0 5px color-mix(in srgb, var(--accent) 22%, transparent)}}
+  }
+  li.fail .node{background:var(--bad);border-color:var(--bad);color:var(--accent-ink)}
+  .scard{background:var(--card);border:1px solid var(--hair)}
+  .shead{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:13px 20px;flex-wrap:wrap}
+  .shead h3{font-family:var(--serif);font-weight:400;font-size:18px;margin:0}
+  .skey{font-family:var(--mono);font-size:10.5px;color:var(--muted)}
+  .sout{display:none;border-top:1px solid var(--hair)}
+  li.run .sout,li.done .sout,li.fail .sout{display:block}
+  .obar{display:flex;justify-content:flex-end;gap:8px;padding:7px 20px}
+  .mini{appearance:none;border:1px solid var(--hair);background:none;color:var(--muted);cursor:pointer;
+    font-family:var(--mono);font-size:10px;padding:4px 10px}
+  .mini:hover{color:var(--accent);border-color:var(--accent)}
+  .sout pre{margin:0;background:var(--code);padding:16px 20px;font-family:var(--mono);font-size:11.5px;
+    line-height:1.65;white-space:pre-wrap;max-height:340px;overflow:auto}
+
+  .after{display:none;gap:10px;margin-top:24px;flex-wrap:wrap}
+  .after.show{display:flex}
+  footer{margin-top:70px;border-top:1px solid var(--hair);padding-top:18px;font-size:11px;
+    letter-spacing:.14em;text-transform:uppercase;color:var(--muted);display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px}
+</style>
+</head>
+<body>
+<div class="frame">
+  <header>
+    <div class="mast">
+      <h1 class="wordmark">J3OS <em>/ Glass &amp; Counsel™</em></h1>
+      <span class="mode" id="mode">no key</span>
+    </div>
+  </header>
+
+  <div class="panel">
+    <div>
+      <label class="flab" for="key">Anthropic API key</label>
+      <div class="row">
+        <input id="key" type="password" placeholder="sk-ant-..." autocomplete="off">
+        <button class="btn ghost" id="verify">Verify key</button>
+        <button class="btn ghost" id="forget">Forget</button>
+      </div>
+      <p class="note" id="keynote">Your key is stored only in this browser (localStorage) and sent only to
+      api.anthropic.com. Generation runs on claude-opus-4-8 with the brand knowledge cached for 1 hour.</p>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div>
+      <label class="flab" for="topic">Topic</label>
+      <div class="row">
+        <input id="topic" type="text" class="topic" value="The 5-minute desk reset for associates">
+        <button class="btn" id="run" disabled>Run live</button>
+        <button class="btn ghost" id="stop" disabled>Stop</button>
+      </div>
+    </div>
+    <div>
+      <span class="flab">Stages</span>
+      <div class="picks" id="picks"></div>
+    </div>
+    <p class="note" id="runnote"></p>
+  </div>
+
+  <div class="meter" id="meter">
+    <div class="m"><div class="n" id="m-in">0</div><div class="l">Input tok</div></div>
+    <div class="m"><div class="n" id="m-cache">0</div><div class="l">Cache read</div></div>
+    <div class="m"><div class="n" id="m-out">0</div><div class="l">Output tok</div></div>
+    <div class="m"><div class="n" id="m-cost">$0.00</div><div class="l">Est. cost</div></div>
+  </div>
+
+  <ol class="tl" id="tl"></ol>
+
+  <div class="after" id="after">
+    <button class="btn ghost" id="dlall">Download asset kit (.md)</button>
+    <button class="btn ghost" id="grade">Grade this kit</button>
+  </div>
+
+  <footer>
+    <span>J3OS live web app · no server required</span>
+    <span>Beauty with Good Judgment.</span>
+  </footer>
+</div>
+
+<script>
+"use strict";
+/* ───────────── knowledge base (source of truth: j3os/brands/glass-and-counsel/knowledge/) ───────────── */
+const DOCS=[
+["00_PROJECT",`# Glass & Counsel™\n\n| Field | Value |\n| --- | --- |\n| Status | Active |\n| Owner | J3 Labs |\n| Version | 0.1 |\n| Current Phase | Foundation |\n\n## Mission\n\nBuild the world's most trusted editorial commerce company for ambitious women.\n\n## Brand Promise\n\nBeauty with Good Judgment.\n\n## North Star\n\nReduce decision fatigue through thoughtful curation.\n\n## Business Model\n\nEditorial Commerce.\n\n## Revenue\n\n**Primary (current):**\n\n- Amazon Associates\n\n**Future:**\n\n- Newsletter\n- ShopMy\n- Brand Partnerships\n- Digital Products\n- Membership\n- Physical Products\n- Media`],
+["01_BRAND",`# Brand Bible\n\n## Brand Personality\n\n- Warm\n- Witty\n- Competent\n- Elegant\n- Curious\n- Calm\n\nNever loud. Never trendy. Always timeless.\n\n## Brand Archetypes\n\n| Rank | Archetype |\n| --- | --- |\n| Primary | Sage |\n| Secondary | Caregiver |\n| Tertiary | Creator |\n\n## Brand Values\n\n- Trust\n- Taste\n- Evidence\n- Craft\n- Consistency\n- Intentional Living`],
+["02_POSITIONING",`# Positioning\n\nWe are not influencers. We are editors.\n\nWe are not selling products. We curate decisions.\n\nOur competition is endless scrolling. Our advantage is judgment.\n\nEverything earns its place.`],
+["03_ICP",`# Ideal Customer Profiles\n\n## Primary ICP\n\n- Women, 26–38\n- Professional, college educated\n- Income: $90K+\n\n**Interests:** Luxury Beauty, Korean Skincare, Pilates, Lagree, Coffee, Books, Travel, Career Growth, Pinterest, Minimalism, Law, Lifestyle.\n\n**Goals:**\n\n- Look expensive.\n- Save time.\n- Buy once. Buy well.\n- Feel put together.\n\n## Sub ICPs\n\n### The Associate\n\nBig law, corporate, medical, consulting, finance.\n\n### The Law Student\n\nUCLA, USC, Pepperdine. Competitive. Study aesthetic. Coffee. Minimal desk setups.\n\n### The Beauty Editor\n\nSkincare obsessed. Luxury aesthetic. Ingredient conscious. Research driven.\n\n### The Auntie\n\nGift guides. Hosting. Family. Holiday shopping. Thoughtful purchases.`],
+["04_EDITORIAL",`# Editorial Standards\n\n## Editorial Pillars\n\n- Beauty\n- Wellness\n- Career\n- Office\n- Travel\n- Amazon Finds\n- Gift Guides\n- Intentional Living\n- Luxury on a Budget\n\n## Weekly Features\n\n- The Counsel Edit\n- Object of the Week\n- Worth It?\n- Weekend Brief\n- Case Closed\n- Beauty Brief\n- Desk Notes\n\n## Review Philosophy\n\nRecommend less. Explain more. Use products. Earn trust. Never overpromise.`],
+["05_CREATIVE",`# Creative Direction\n\n## Visual Keywords\n\nQuiet Luxury, Editorial, Swiss, Museum, Apple, Aesop, COS, Toteme, Kinfolk, Glass, Chrome, Marble, Travertine, Cream, Linen.\n\n## Photography\n\n- Natural light\n- Soft flash\n- Editorial compositions\n- Real environments\n- Minimal styling\n\n## Typography\n\n- Canela\n- Editorial New\n- Inter\n- Neue Haas\n\nLarge serif. Tiny labels. Generous whitespace.`],
+["06_MONETIZATION",`# Monetization / Commerce Rules\n\n## Current\n\n- Amazon Associates\n\n## Future\n\n- ShopMy\n- LTK\n- Newsletter Sponsorship\n- Digital Products\n- Courses\n- Membership\n\n## Commerce Formats\n\n- Affiliate Reviews\n- Comparison Articles\n- Gift Guides\n- Shopping Lists\n- Seasonal Campaigns`],
+["07_AI",`# AI Instructions\n\nEvery AI must read the following before creating anything:\n\n1. The Brand Bible (01_BRAND.md)\n2. The ICP (03_ICP.md)\n3. Editorial Standards (04_EDITORIAL.md)\n4. The Design System / Creative Direction (05_CREATIVE.md)\n5. Commerce Rules (06_MONETIZATION.md)\n\n## Output Requirements\n\nOutputs must feel:\n\n- Editorial\n- Helpful\n- Beautiful\n- Trustworthy\n\nNever clickbait. Never spam.`],
+["08_ROADMAP",`# Roadmap\n\n## Phase 1 — Brand\n\n- Identity\n- Website\n- Newsletter\n- Pinterest\n- Instagram\n- Amazon\n\n## Phase 2 — Growth\n\n- SEO\n- Editorial\n- Commerce\n- Automation\n\n## Phase 3 — Products\n\n- Digital Products\n- Community\n- Membership\n\n## Phase 4 — Media Company\n\n- Beauty Brand\n- Podcast\n- Media Company`]
+];
+const SYSTEM="You are the in-house AI staff of Glass & Counsel™, a company that runs on J3OS. "+
+"The documents below are the permanent source of truth for this brand. Every output must be consistent "+
+"with them — voice, audience, editorial standards, creative direction, and commerce rules. Outputs must "+
+"feel editorial, helpful, beautiful, and trustworthy. Never clickbait. Never spam.\n\n"+
+DOCS.map(d=>`<document name="${d[0]}">\n${d[1].trim()}\n</document>`).join("\n\n");
+
+/* ───────────── pipeline stages (mirror j3os/engines/editorial/pipeline.py) ───────────── */
+const STAGES=[
+ {key:"research",title:"Research",max:16000,ins:"Produce a research memo on the topic for the editorial team: what the ICP already believes, what questions she is actually asking, what the competitive coverage looks like, which products or approaches are credible (with evidence), and which angles fit the brand's editorial pillars. Cite reasoning, flag uncertainty, and end with the 3 strongest angles ranked."},
+ {key:"brief",title:"Editorial Brief",max:16000,ins:"Turn the research into an editorial brief: chosen angle, working headline options (5), the reader promise, the judgment we are offering (what we recommend and what we deliberately leave out), target feature format from the weekly features list, products to feature with selection rationale, and what 'done well' looks like."},
+ {key:"seo_outline",title:"SEO Outline",max:16000,ins:"Produce an SEO outline for the article: primary keyword, secondary keywords, search intent analysis, title tag and meta description, URL slug, H2/H3 structure with what each section must cover, internal-link opportunities, and FAQ schema questions. Stay editorial — no keyword stuffing, no clickbait."},
+ {key:"article",title:"Long-form Article",max:32000,ins:"Write the full long-form article following the brief and the SEO outline. Editorial voice per the Brand Bible: warm, witty, competent, calm. Recommend less, explain more. Include natural placements for affiliate products with honest, evidence-led reasoning, and a 'the counsel' verdict section. 1,500–2,500 words."},
+ {key:"newsletter",title:"Newsletter",max:16000,ins:"Adapt the article into a newsletter edition: subject line options (5, tested against the ICP), preview text, a warm editor's-note opening, the condensed insight, one clear product recommendation block, and a soft CTA to the full article. Keep it scannable."},
+ {key:"instagram_carousel",title:"Instagram Carousel",max:16000,ins:"Create an Instagram carousel from the article: 8–10 slides, each with on-slide copy (max ~20 words), an art-direction note per slide consistent with the creative direction (quiet luxury, editorial, generous whitespace), plus the caption with hook, value, CTA, and hashtag set."},
+ {key:"pinterest_pins",title:"Pinterest Pins",max:16000,ins:"Create 5 Pinterest pin concepts: pin title, pin description with keywords, text overlay copy, art direction per the design system, and the board(s) each pin belongs to. Pinterest is a primary discovery channel for the ICP — optimize for saves."},
+ {key:"amazon_review",title:"Amazon Review",max:16000,ins:"Write the standalone product review for the featured product (Amazon Associates): honest evaluation per the review philosophy — recommend less, explain more, never overpromise. Include who it's for, who should skip it, evidence and comparisons, and the 'Worth It?' verdict."},
+ {key:"email",title:"Email",max:16000,ins:"Write a short standalone promotional email (distinct from the newsletter): one idea, one product, one CTA. Subject line options (3), body under 200 words, elegant and direct, zero spam energy."},
+ {key:"hero_images",title:"Hero Images",max:16000,ins:"Write hero-image production notes: 3 concepts for the article hero, each with a detailed art-direction description (composition, surfaces, light, styling, palette) following the creative direction, plus a text-to-image prompt version of each, and crop specs for web, newsletter, Instagram, and Pinterest."},
+ {key:"scheduling_queue",title:"Scheduling Queue",max:16000,ins:"Produce the scheduling queue for this asset kit: a 14-day publish plan mapping every asset to channel, date offset (day 0 = article publish), time-of-day rationale for the ICP, and cross-promotion notes. Output as a markdown table plus notes."},
+];
+
+/* ───────────── anthropic client (direct browser access) ───────────── */
+const API="https://api.anthropic.com/v1";
+const MODEL="claude-opus-4-8";
+function headers(key){return{
+  "x-api-key":key,
+  "anthropic-version":"2023-06-01",
+  "anthropic-dangerous-direct-browser-access":"true",
+  "content-type":"application/json"
+}}
+const usage={inp:0,cache:0,out:0};
+function cost(){return usage.inp*5e-6+usage.cache*0.5e-6+usage.out*25e-6}
+function meter(){
+  $("m-in").textContent=usage.inp.toLocaleString();
+  $("m-cache").textContent=usage.cache.toLocaleString();
+  $("m-out").textContent=usage.out.toLocaleString();
+  $("m-cost").textContent="$"+cost().toFixed(2);
+}
+async function streamMessage(key,prompt,maxTokens,onText,signal){
+  const resp=await fetch(API+"/messages",{method:"POST",signal,headers:headers(key),body:JSON.stringify({
+    model:MODEL,max_tokens:maxTokens,stream:true,
+    thinking:{type:"adaptive"},
+    system:[{type:"text",text:SYSTEM,cache_control:{type:"ephemeral",ttl:"1h"}}],
+    messages:[{role:"user",content:prompt}]
+  })});
+  if(!resp.ok){
+    let msg="HTTP "+resp.status;
+    try{const e=await resp.json();msg=(e.error&&e.error.message)||msg}catch(_){/* keep default */}
+    throw new Error(msg);
+  }
+  const reader=resp.body.getReader(),dec=new TextDecoder();
+  let buf="",text="",stopReason=null;
+  for(;;){
+    const {done,value}=await reader.read();
+    if(done)break;
+    buf+=dec.decode(value,{stream:true});
+    const lines=buf.split("\n");buf=lines.pop();
+    for(const line of lines){
+      if(!line.startsWith("data: "))continue;
+      let ev;try{ev=JSON.parse(line.slice(6))}catch(_){continue}
+      if(ev.type==="message_start"&&ev.message&&ev.message.usage){
+        const u=ev.message.usage;
+        usage.inp+=(u.input_tokens||0)+(u.cache_creation_input_tokens||0)*1.25;
+        usage.cache+=u.cache_read_input_tokens||0;meter();
+      }else if(ev.type==="content_block_delta"&&ev.delta&&ev.delta.type==="text_delta"){
+        text+=ev.delta.text;onText(ev.delta.text);
+      }else if(ev.type==="message_delta"){
+        if(ev.usage&&ev.usage.output_tokens!=null){usage.out+=ev.usage.output_tokens;meter()}
+        if(ev.delta&&ev.delta.stop_reason)stopReason=ev.delta.stop_reason;
+      }else if(ev.type==="error"){
+        throw new Error((ev.error&&ev.error.message)||"stream error");
+      }
+    }
+  }
+  if(stopReason==="refusal")throw new Error("Claude declined this request (refusal)");
+  if(stopReason==="max_tokens")onText("\n\n[truncated: hit max_tokens]");
+  return text;
+}
+
+/* ───────────── UI ───────────── */
+const $=id=>document.getElementById(id);
+const esc=s=>s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+let selected=new Set(STAGES.map(s=>s.key)),artifacts={},topicNow="",abort=null;
+
+function setMode(state,msg,cls){
+  $("mode").textContent=state;$("mode").classList.toggle("live",state==="live");
+  if(msg!==undefined){$("keynote").textContent=msg;$("keynote").className="note "+(cls||"")}
+}
+function drawPicks(){
+  $("picks").innerHTML=STAGES.map(s=>`<button class="${selected.has(s.key)?"on":""}" data-k="${s.key}">${s.key}</button>`).join("");
+  $("picks").querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>{
+    const k=b.dataset.k;selected.has(k)?selected.delete(k):selected.add(k);drawPicks();
+  }));
+}
+function buildTimeline(keys){
+  $("tl").innerHTML=STAGES.filter(s=>keys.includes(s.key)).map((s)=>{
+    const ix=STAGES.findIndex(x=>x.key===s.key)+1;
+    return `<li id="st-${s.key}">
+      <span class="node">${String(ix).padStart(2,"0")}</span>
+      <div class="scard">
+        <div class="shead"><h3>${s.title}</h3><span class="skey" id="k-${s.key}">${String(ix).padStart(2,"0")}_${s.key}.md</span></div>
+        <div class="sout">
+          <div class="obar">
+            <button class="mini" data-copy="${s.key}">copy</button>
+            <button class="mini" data-dl="${s.key}">download</button>
+          </div>
+          <pre id="out-${s.key}"></pre>
+        </div>
+      </div></li>`;
+  }).join("");
+  $("tl").querySelectorAll("[data-copy]").forEach(b=>b.addEventListener("click",()=>{
+    navigator.clipboard&&navigator.clipboard.writeText(artifacts[b.dataset.copy]||$("out-"+b.dataset.copy).textContent)
+      .then(()=>{b.textContent="copied";setTimeout(()=>b.textContent="copy",1200)});
+  }));
+  $("tl").querySelectorAll("[data-dl]").forEach(b=>b.addEventListener("click",()=>{
+    download(b.dataset.dl+".md",artifacts[b.dataset.dl]||$("out-"+b.dataset.dl).textContent);
+  }));
+}
+function download(name,content){
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([content],{type:"text/markdown"}));
+  a.download=name;a.click();URL.revokeObjectURL(a.href);
+}
+function stagePrompt(stage,topic,arts){
+  let p=`Topic: ${topic}\n\nTask — ${stage.title}:\n${stage.ins}`;
+  const keys=Object.keys(arts);
+  if(keys.length){
+    p+=`\n\nUpstream pipeline artifacts (build on these; stay consistent with them):`;
+    for(const k of keys)p+=`\n\n<artifact stage="${k}">\n${arts[k].trim()}\n</artifact>`;
+  }
+  return p;
+}
+
+/* key handling */
+const saved=localStorage.getItem("j3os_key");
+if(saved){$("key").value=saved;setMode("key saved","Key loaded from this browser. Verify to go live.")}
+$("forget").addEventListener("click",()=>{localStorage.removeItem("j3os_key");$("key").value="";$("run").disabled=true;setMode("no key","Key removed from this browser.")});
+$("verify").addEventListener("click",async()=>{
+  const key=$("key").value.trim();
+  if(!key){setMode("no key","Paste an API key first.","err");return}
+  setMode("checking…","Verifying against api.anthropic.com …");
+  try{
+    const r=await fetch(API+"/models/"+MODEL,{headers:headers(key)});
+    if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error((e.error&&e.error.message)||("HTTP "+r.status))}
+    localStorage.setItem("j3os_key",key);
+    setMode("live","Key verified — "+MODEL+" is reachable. Runs are live and will spend tokens.","ok");
+    $("run").disabled=false;
+  }catch(e){
+    setMode("no key","Key check failed: "+e.message+" (if this is a network/CORS error, check ad blockers)","err");
+    $("run").disabled=true;
+  }
+});
+
+/* run */
+$("run").addEventListener("click",async()=>{
+  const key=$("key").value.trim(),topic=$("topic").value.trim();
+  if(!key||!topic)return;
+  const keys=STAGES.map(s=>s.key).filter(k=>selected.has(k));
+  if(!keys.length){$("runnote").textContent="Select at least one stage.";return}
+  artifacts={};topicNow=topic;
+  usage.inp=0;usage.cache=0;usage.out=0;meter();
+  $("meter").classList.add("show");$("after").classList.remove("show");
+  buildTimeline(keys);
+  $("run").disabled=true;$("stop").disabled=false;
+  $("runnote").className="note";$("runnote").textContent="Running live on "+MODEL+" …";
+  abort=new AbortController();
+  try{
+    for(const k of keys){
+      const stage=STAGES.find(s=>s.key===k);
+      const li=$("st-"+k);li.classList.add("run");
+      const pre=$("out-"+k);
+      const text=await streamMessage(key,stagePrompt(stage,topic,artifacts),stage.max,
+        d=>{pre.textContent+=d;pre.scrollTop=pre.scrollHeight;},abort.signal);
+      artifacts[k]=text;
+      li.classList.remove("run");li.classList.add("done");
+      $("k-"+k).textContent+=" · "+text.length.toLocaleString()+" chars";
+    }
+    $("runnote").className="note ok";
+    $("runnote").textContent="Asset kit complete — "+keys.length+" artifacts, est. $"+cost().toFixed(2)+".";
+    $("after").classList.add("show");
+  }catch(e){
+    document.querySelectorAll("#tl li.run").forEach(li=>{li.classList.remove("run");li.classList.add("fail")});
+    $("runnote").className="note err";
+    $("runnote").textContent=(e.name==="AbortError")?"Run stopped.":"Run failed: "+e.message;
+    if(Object.keys(artifacts).length)$("after").classList.add("show");
+  }finally{
+    $("run").disabled=false;$("stop").disabled=true;abort=null;
+  }
+});
+$("stop").addEventListener("click",()=>{if(abort)abort.abort()});
+
+/* kit download + grading */
+$("dlall").addEventListener("click",()=>{
+  const parts=["# "+topicNow+"\n\nGlass & Counsel™ asset kit — generated by J3OS.\n"];
+  for(const s of STAGES)if(artifacts[s.key])parts.push("\n\n---\n\n## "+s.title+"\n\n"+artifacts[s.key]);
+  download("j3os-kit-"+topicNow.toLowerCase().split(/\s+/).join("-").slice(0,50)+".md",parts.join(""));
+});
+$("grade").addEventListener("click",async()=>{
+  const key=$("key").value.trim();
+  if(!key||!Object.keys(artifacts).length)return;
+  $("grade").disabled=true;
+  let prompt="You are the editor-in-chief. Grade every artifact in this asset kit strictly against the "+
+    "Editorial Standards and Brand Bible: voice (warm, witty, competent, calm), review philosophy "+
+    "(recommend less, explain more, never overpromise), ICP fit, and no clickbait or spam. For each "+
+    "artifact give a score out of 10, a one-sentence verdict, and 2-3 concrete fixes. End with an "+
+    "overall kit score and the single highest-leverage revision.\n\nTopic: "+topicNow;
+  for(const s of STAGES)if(artifacts[s.key])prompt+=`\n\n<artifact stage="${s.key}">\n${artifacts[s.key].trim()}\n</artifact>`;
+  const id="st-grade";
+  if(!$(id)){
+    const li=document.createElement("li");li.id=id;
+    li.innerHTML=`<span class="node">EIC</span><div class="scard">
+      <div class="shead"><h3>Scorecard</h3><span class="skey">review/scorecard.md</span></div>
+      <div class="sout"><div class="obar"><button class="mini" id="dl-grade">download</button></div><pre id="out-grade"></pre></div></div>`;
+    $("tl").appendChild(li);
+    $("dl-grade").addEventListener("click",()=>download("scorecard.md",$("out-grade").textContent));
+  }
+  const li=$(id);li.classList.remove("done","fail");li.classList.add("run");
+  const pre=$("out-grade");pre.textContent="";
+  try{
+    await streamMessage(key,prompt,8000,d=>{pre.textContent+=d;pre.scrollTop=pre.scrollHeight},null);
+    li.classList.remove("run");li.classList.add("done");
+  }catch(e){
+    li.classList.remove("run");li.classList.add("fail");
+    pre.textContent+="\n[grading failed: "+e.message+"]";
+  }finally{$("grade").disabled=false}
+});
+
+drawPicks();
+</script>
+</body>
+</html>
