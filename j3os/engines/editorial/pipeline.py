@@ -31,6 +31,8 @@ class PipelineStage:
     instructions: str   # what this stage must produce
     max_tokens: int = 16000
     web_search: bool = False  # ground this stage with live web search when enabled
+    tier: str = "adapt"  # "judgment" needs frontier reasoning; "adapt" reshapes
+                         # upstream artifacts and routes cheaper under orchestration
 
 
 PIPELINE: list[PipelineStage] = [
@@ -46,6 +48,7 @@ PIPELINE: list[PipelineStage] = [
             "end with the 3 strongest angles ranked."
         ),
         web_search=True,
+        tier="judgment",
     ),
     PipelineStage(
         key="brief",
@@ -57,6 +60,7 @@ PIPELINE: list[PipelineStage] = [
             "target feature format from the weekly features list, products to "
             "feature with selection rationale, and what 'done well' looks like."
         ),
+        tier="judgment",
     ),
     PipelineStage(
         key="seo_outline",
@@ -80,6 +84,7 @@ PIPELINE: list[PipelineStage] = [
             "reasoning, and a 'the counsel' verdict section. 1,500–2,500 words."
         ),
         max_tokens=32000,
+        tier="judgment",
     ),
     PipelineStage(
         key="newsletter",
@@ -122,6 +127,7 @@ PIPELINE: list[PipelineStage] = [
             "it's for, who should skip it, evidence and comparisons, and the "
             "'Worth It?' verdict."
         ),
+        tier="judgment",
     ),
     PipelineStage(
         key="email",
@@ -142,6 +148,7 @@ PIPELINE: list[PipelineStage] = [
             "direction, plus a text-to-image prompt version of each, and crop "
             "specs for web, newsletter, Instagram, and Pinterest."
         ),
+        tier="judgment",
     ),
     PipelineStage(
         key="scheduling_queue",
@@ -190,6 +197,7 @@ def run_pipeline(
     output_root: Path | None = None,
     progress: ProgressCallback = None,
     web_research: bool = False,
+    orchestrate: bool = False,
 ) -> PipelineResult:
     """Run the editorial pipeline for a topic, writing each artifact to
     the brand's output directory as markdown.
@@ -229,6 +237,7 @@ def run_pipeline(
         "created_at": datetime.now(timezone.utc).isoformat(),
         "dry_run": resolved_dry_run,
         "web_research": bool(web_research),
+        "orchestrate": bool(orchestrate),
         "stages": [],
     }
 
@@ -265,6 +274,9 @@ def run_pipeline(
             on_text = lambda delta, key=stage.key: emit(
                 {"event": "text", "stage": key, "delta": delta}
             )
+        stage_model = (
+            llm.ADAPT_MODEL if orchestrate and stage.tier == "adapt" else None
+        )
         prompt = _stage_prompt(stage, topic, result.artifacts)
         content = llm.generate(
             system,
@@ -272,6 +284,7 @@ def run_pipeline(
             dry_run=dry_run,
             max_tokens=stage.max_tokens,
             on_text=on_text,
+            model=stage_model,
             web_search=web_research and stage.web_search,
         )
         result.artifacts[stage.key] = content

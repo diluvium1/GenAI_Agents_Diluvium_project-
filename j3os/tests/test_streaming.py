@@ -56,6 +56,34 @@ def test_manifest_written_per_stage(tmp_path):
     assert manifest["stages"][0]["chars"] > 0
 
 
+def test_orchestrate_routes_adapt_stages(tmp_path, monkeypatch):
+    from j3os.core import llm
+    from j3os.engines.editorial import pipeline as pl
+
+    seen: dict[str, str | None] = {}
+    real = llm.generate
+
+    def spy(system, prompt, *, model=None, **kw):
+        # first line after "Task —" identifies the stage title
+        seen[len(seen)] = model
+        return real(system, prompt, model=model, **kw)
+
+    monkeypatch.setattr(pl.llm, "generate", spy)
+    result = pl.run_pipeline(
+        Brand.load(GC),
+        "routing check",
+        stages=["research", "seo_outline"],
+        dry_run=True,
+        output_root=tmp_path,
+        orchestrate=True,
+    )
+    # research is judgment tier (default model = None), seo_outline is adapt
+    assert seen[0] is None
+    assert seen[1] == llm.ADAPT_MODEL
+    manifest = json.loads((result.output_dir / "manifest.json").read_text())
+    assert manifest["orchestrate"] is True
+
+
 def test_progress_none_is_unchanged(tmp_path):
     result = run_pipeline(
         Brand.load(GC),

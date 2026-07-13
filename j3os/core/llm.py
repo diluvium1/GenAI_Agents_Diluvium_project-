@@ -18,7 +18,8 @@ from __future__ import annotations
 import os
 from typing import Callable, Optional
 
-MODEL = "claude-opus-4-8"
+MODEL = "claude-opus-4-8"        # judgment tier
+ADAPT_MODEL = "claude-sonnet-5"  # adaptation tier (orchestrator routing)
 MAX_TOKENS = 64000
 
 
@@ -34,6 +35,7 @@ def generate(
     max_tokens: int = MAX_TOKENS,
     on_text: Optional[Callable[[str], None]] = None,
     web_search: bool = False,
+    model: str | None = None,
 ) -> str:
     """Run one generation grounded in the brand knowledge system prompt.
 
@@ -49,6 +51,10 @@ def generate(
     (``stop_reason == "pause_turn"``), the stream is resumed until the model
     finishes (capped at a handful of continuations), and text is accumulated
     across every continuation.
+
+    ``model`` overrides the default judgment-tier model (used by the
+    orchestrator to route adaptation stages to a cheaper tier). Prompt
+    caches are per-model, so each tier warms its own knowledge context.
     """
     if dry_run if dry_run is not None else is_dry_run():
         text = f"[dry-run]\n--- system ---\n{system}\n--- prompt ---\n{prompt}"
@@ -89,7 +95,7 @@ def generate(
     # until the model stops pausing, capping the number of continuations.
     for _ in range(6):
         stream_kwargs = dict(
-            model=MODEL,
+            model=model or MODEL,
             max_tokens=max_tokens,
             thinking={"type": "adaptive"},
             system=system_block,

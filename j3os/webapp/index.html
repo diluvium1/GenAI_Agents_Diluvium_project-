@@ -86,6 +86,15 @@
   .sout pre{margin:0;background:var(--code);padding:16px 20px;font-family:var(--mono);font-size:11.5px;
     line-height:1.65;white-space:pre-wrap;max-height:340px;overflow:auto}
 
+  .togglewrap{display:flex;gap:9px;align-items:baseline;font-size:12.5px;color:var(--muted);max-width:78ch}
+  .togglewrap input{accent-color:var(--accent);transform:translateY(1px)}
+  .heroimgs{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px;
+    padding:16px 20px;border-top:1px solid var(--hair)}
+  .heroimgs figure{margin:0}
+  .heroimgs img{width:100%;display:block;border:1px solid var(--hair)}
+  .heroimgs figcaption{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:6px;
+    display:flex;justify-content:space-between;gap:8px}
+  .heroimgs a{color:var(--accent);text-decoration:none}
   .after{display:none;gap:10px;margin-top:24px;flex-wrap:wrap}
   .after.show{display:flex}
   footer{margin-top:70px;border-top:1px solid var(--hair);padding-top:18px;font-size:11px;
@@ -103,15 +112,26 @@
 
   <div class="panel">
     <div>
-      <label class="flab" for="key">Anthropic API key</label>
+      <label class="flab" for="key">Anthropic API key — editorial text</label>
       <div class="row">
         <input id="key" type="password" placeholder="sk-ant-..." autocomplete="off">
-        <button class="btn ghost" id="verify">Verify key</button>
+        <button class="btn ghost" id="verify">Verify</button>
         <button class="btn ghost" id="forget">Forget</button>
       </div>
-      <p class="note" id="keynote">Your key is stored only in this browser (localStorage) and sent only to
-      api.anthropic.com. Generation runs on claude-opus-4-8 with the brand knowledge cached for 1 hour.</p>
     </div>
+    <div>
+      <label class="flab" for="gkey">Gemini API key — hero image rendering (optional)</label>
+      <div class="row">
+        <input id="gkey" type="password" placeholder="AIza..." autocomplete="off">
+        <button class="btn ghost" id="gverify">Verify</button>
+        <button class="btn ghost" id="gforget">Forget</button>
+      </div>
+      <p class="note" id="gkeynote">With a Gemini key, the Hero Images stage renders its three concepts as
+      actual images (gemini-2.5-flash-image).</p>
+    </div>
+    <p class="note" id="keynote">Keys are stored only in this browser (localStorage). The Anthropic key is
+    sent only to api.anthropic.com; the Gemini key only to generativelanguage.googleapis.com. The brand
+    knowledge context is cached for 1 hour per model.</p>
   </div>
 
   <div class="panel">
@@ -127,6 +147,11 @@
       <span class="flab">Stages</span>
       <div class="picks" id="picks"></div>
     </div>
+    <div class="togglewrap">
+      <input type="checkbox" id="orch" checked>
+      <label for="orch">Orchestrator mode — route each stage to the cheapest model that meets its bar:
+      judgment → Opus 4.8 · adaptation → Sonnet 5 · images → Gemini. Off = everything on Opus.</label>
+    </div>
     <p class="note" id="runnote"></p>
   </div>
 
@@ -134,6 +159,7 @@
     <div class="m"><div class="n" id="m-in">0</div><div class="l">Input tok</div></div>
     <div class="m"><div class="n" id="m-cache">0</div><div class="l">Cache read</div></div>
     <div class="m"><div class="n" id="m-out">0</div><div class="l">Output tok</div></div>
+    <div class="m"><div class="n" id="m-img">0</div><div class="l">Images</div></div>
     <div class="m"><div class="n" id="m-cost">$0.00</div><div class="l">Est. cost</div></div>
   </div>
 
@@ -170,41 +196,54 @@ const SYSTEM="You are the in-house AI staff of Glass & Counsel™, a company tha
 "feel editorial, helpful, beautiful, and trustworthy. Never clickbait. Never spam.\n\n"+
 DOCS.map(d=>`<document name="${d[0]}">\n${d[1].trim()}\n</document>`).join("\n\n");
 
-/* ───────────── pipeline stages (mirror j3os/engines/editorial/pipeline.py) ───────────── */
+/* ───────────── pipeline stages (mirror j3os/engines/editorial/pipeline.py) ─────────────
+   tier: "judgment" stages need frontier reasoning (Opus); "adapt" stages reshape
+   existing artifacts and route to Sonnet under orchestrator mode. */
 const STAGES=[
- {key:"research",title:"Research",max:16000,ins:"Produce a research memo on the topic for the editorial team: what the ICP already believes, what questions she is actually asking, what the competitive coverage looks like, which products or approaches are credible (with evidence), and which angles fit the brand's editorial pillars. Cite reasoning, flag uncertainty, and end with the 3 strongest angles ranked."},
- {key:"brief",title:"Editorial Brief",max:16000,ins:"Turn the research into an editorial brief: chosen angle, working headline options (5), the reader promise, the judgment we are offering (what we recommend and what we deliberately leave out), target feature format from the weekly features list, products to feature with selection rationale, and what 'done well' looks like."},
- {key:"seo_outline",title:"SEO Outline",max:16000,ins:"Produce an SEO outline for the article: primary keyword, secondary keywords, search intent analysis, title tag and meta description, URL slug, H2/H3 structure with what each section must cover, internal-link opportunities, and FAQ schema questions. Stay editorial — no keyword stuffing, no clickbait."},
- {key:"article",title:"Long-form Article",max:32000,ins:"Write the full long-form article following the brief and the SEO outline. Editorial voice per the Brand Bible: warm, witty, competent, calm. Recommend less, explain more. Include natural placements for affiliate products with honest, evidence-led reasoning, and a 'the counsel' verdict section. 1,500–2,500 words."},
- {key:"newsletter",title:"Newsletter",max:16000,ins:"Adapt the article into a newsletter edition: subject line options (5, tested against the ICP), preview text, a warm editor's-note opening, the condensed insight, one clear product recommendation block, and a soft CTA to the full article. Keep it scannable."},
- {key:"instagram_carousel",title:"Instagram Carousel",max:16000,ins:"Create an Instagram carousel from the article: 8–10 slides, each with on-slide copy (max ~20 words), an art-direction note per slide consistent with the creative direction (quiet luxury, editorial, generous whitespace), plus the caption with hook, value, CTA, and hashtag set."},
- {key:"pinterest_pins",title:"Pinterest Pins",max:16000,ins:"Create 5 Pinterest pin concepts: pin title, pin description with keywords, text overlay copy, art direction per the design system, and the board(s) each pin belongs to. Pinterest is a primary discovery channel for the ICP — optimize for saves."},
- {key:"amazon_review",title:"Amazon Review",max:16000,ins:"Write the standalone product review for the featured product (Amazon Associates): honest evaluation per the review philosophy — recommend less, explain more, never overpromise. Include who it's for, who should skip it, evidence and comparisons, and the 'Worth It?' verdict."},
- {key:"email",title:"Email",max:16000,ins:"Write a short standalone promotional email (distinct from the newsletter): one idea, one product, one CTA. Subject line options (3), body under 200 words, elegant and direct, zero spam energy."},
- {key:"hero_images",title:"Hero Images",max:16000,ins:"Write hero-image production notes: 3 concepts for the article hero, each with a detailed art-direction description (composition, surfaces, light, styling, palette) following the creative direction, plus a text-to-image prompt version of each, and crop specs for web, newsletter, Instagram, and Pinterest."},
- {key:"scheduling_queue",title:"Scheduling Queue",max:16000,ins:"Produce the scheduling queue for this asset kit: a 14-day publish plan mapping every asset to channel, date offset (day 0 = article publish), time-of-day rationale for the ICP, and cross-promotion notes. Output as a markdown table plus notes."},
+ {key:"research",title:"Research",max:16000,tier:"judgment",ins:"Produce a research memo on the topic for the editorial team: what the ICP already believes, what questions she is actually asking, what the competitive coverage looks like, which products or approaches are credible (with evidence), and which angles fit the brand's editorial pillars. Cite reasoning, flag uncertainty, and end with the 3 strongest angles ranked."},
+ {key:"brief",title:"Editorial Brief",max:16000,tier:"judgment",ins:"Turn the research into an editorial brief: chosen angle, working headline options (5), the reader promise, the judgment we are offering (what we recommend and what we deliberately leave out), target feature format from the weekly features list, products to feature with selection rationale, and what 'done well' looks like."},
+ {key:"seo_outline",title:"SEO Outline",max:16000,tier:"adapt",ins:"Produce an SEO outline for the article: primary keyword, secondary keywords, search intent analysis, title tag and meta description, URL slug, H2/H3 structure with what each section must cover, internal-link opportunities, and FAQ schema questions. Stay editorial — no keyword stuffing, no clickbait."},
+ {key:"article",title:"Long-form Article",max:32000,tier:"judgment",ins:"Write the full long-form article following the brief and the SEO outline. Editorial voice per the Brand Bible: warm, witty, competent, calm. Recommend less, explain more. Include natural placements for affiliate products with honest, evidence-led reasoning, and a 'the counsel' verdict section. 1,500–2,500 words."},
+ {key:"newsletter",title:"Newsletter",max:16000,tier:"adapt",ins:"Adapt the article into a newsletter edition: subject line options (5, tested against the ICP), preview text, a warm editor's-note opening, the condensed insight, one clear product recommendation block, and a soft CTA to the full article. Keep it scannable."},
+ {key:"instagram_carousel",title:"Instagram Carousel",max:16000,tier:"adapt",ins:"Create an Instagram carousel from the article: 8–10 slides, each with on-slide copy (max ~20 words), an art-direction note per slide consistent with the creative direction (quiet luxury, editorial, generous whitespace), plus the caption with hook, value, CTA, and hashtag set."},
+ {key:"pinterest_pins",title:"Pinterest Pins",max:16000,tier:"adapt",ins:"Create 5 Pinterest pin concepts: pin title, pin description with keywords, text overlay copy, art direction per the design system, and the board(s) each pin belongs to. Pinterest is a primary discovery channel for the ICP — optimize for saves."},
+ {key:"amazon_review",title:"Amazon Review",max:16000,tier:"judgment",ins:"Write the standalone product review for the featured product (Amazon Associates): honest evaluation per the review philosophy — recommend less, explain more, never overpromise. Include who it's for, who should skip it, evidence and comparisons, and the 'Worth It?' verdict."},
+ {key:"email",title:"Email",max:16000,tier:"adapt",ins:"Write a short standalone promotional email (distinct from the newsletter): one idea, one product, one CTA. Subject line options (3), body under 200 words, elegant and direct, zero spam energy."},
+ {key:"hero_images",title:"Hero Images",max:16000,tier:"judgment",ins:"Write hero-image production notes: 3 concepts for the article hero, each with a detailed art-direction description (composition, surfaces, light, styling, palette) following the creative direction, plus a text-to-image prompt version of each, and crop specs for web, newsletter, Instagram, and Pinterest."},
+ {key:"scheduling_queue",title:"Scheduling Queue",max:16000,tier:"adapt",ins:"Produce the scheduling queue for this asset kit: a 14-day publish plan mapping every asset to channel, date offset (day 0 = article publish), time-of-day rationale for the ICP, and cross-promotion notes. Output as a markdown table plus notes."},
 ];
 
-/* ───────────── anthropic client (direct browser access) ───────────── */
+/* ───────────── providers (direct browser access) ───────────── */
 const API="https://api.anthropic.com/v1";
-const MODEL="claude-opus-4-8";
+const MODEL="claude-opus-4-8";          // judgment tier
+const SONNET="claude-sonnet-5";         // adaptation tier (orchestrator mode)
+const RATES={                            // $/token: input, output, cache read
+  "claude-opus-4-8":{inp:5e-6,out:25e-6,cache:0.5e-6},
+  "claude-sonnet-5":{inp:3e-6,out:15e-6,cache:0.3e-6},
+};
+const GEM_API="https://generativelanguage.googleapis.com/v1beta";
+const GEM_MODEL="gemini-2.5-flash-image";
+const IMG_COST=0.04;                     // est. $/image
+const SHORT={"claude-opus-4-8":"opus 4.8","claude-sonnet-5":"sonnet 5"};
 function headers(key){return{
   "x-api-key":key,
   "anthropic-version":"2023-06-01",
   "anthropic-dangerous-direct-browser-access":"true",
   "content-type":"application/json"
 }}
-const usage={inp:0,cache:0,out:0};
-function cost(){return usage.inp*5e-6+usage.cache*0.5e-6+usage.out*25e-6}
+const usage={inp:0,cache:0,out:0,imgs:0,usd:0};
 function meter(){
-  $("m-in").textContent=usage.inp.toLocaleString();
+  $("m-in").textContent=Math.round(usage.inp).toLocaleString();
   $("m-cache").textContent=usage.cache.toLocaleString();
   $("m-out").textContent=usage.out.toLocaleString();
-  $("m-cost").textContent="$"+cost().toFixed(2);
+  $("m-img").textContent=usage.imgs;
+  $("m-cost").textContent="$"+usage.usd.toFixed(2);
 }
-async function streamMessage(key,prompt,maxTokens,onText,signal){
+async function streamMessage(key,prompt,maxTokens,onText,signal,model){
+  model=model||MODEL;
+  const rates=RATES[model]||RATES[MODEL];
   const resp=await fetch(API+"/messages",{method:"POST",signal,headers:headers(key),body:JSON.stringify({
-    model:MODEL,max_tokens:maxTokens,stream:true,
+    model:model,max_tokens:maxTokens,stream:true,
     thinking:{type:"adaptive"},
     system:[{type:"text",text:SYSTEM,cache_control:{type:"ephemeral",ttl:"1h"}}],
     messages:[{role:"user",content:prompt}]
@@ -226,12 +265,17 @@ async function streamMessage(key,prompt,maxTokens,onText,signal){
       let ev;try{ev=JSON.parse(line.slice(6))}catch(_){continue}
       if(ev.type==="message_start"&&ev.message&&ev.message.usage){
         const u=ev.message.usage;
-        usage.inp+=(u.input_tokens||0)+(u.cache_creation_input_tokens||0)*1.25;
-        usage.cache+=u.cache_read_input_tokens||0;meter();
+        const inp=u.input_tokens||0, cw=u.cache_creation_input_tokens||0, cr=u.cache_read_input_tokens||0;
+        usage.inp+=inp+cw; usage.cache+=cr;
+        usage.usd+=inp*rates.inp + cw*rates.inp*1.25 + cr*rates.cache;
+        meter();
       }else if(ev.type==="content_block_delta"&&ev.delta&&ev.delta.type==="text_delta"){
         text+=ev.delta.text;onText(ev.delta.text);
       }else if(ev.type==="message_delta"){
-        if(ev.usage&&ev.usage.output_tokens!=null){usage.out+=ev.usage.output_tokens;meter()}
+        if(ev.usage&&ev.usage.output_tokens!=null){
+          usage.out+=ev.usage.output_tokens;
+          usage.usd+=ev.usage.output_tokens*rates.out;meter();
+        }
         if(ev.delta&&ev.delta.stop_reason)stopReason=ev.delta.stop_reason;
       }else if(ev.type==="error"){
         throw new Error((ev.error&&ev.error.message)||"stream error");
@@ -241,6 +285,58 @@ async function streamMessage(key,prompt,maxTokens,onText,signal){
   if(stopReason==="refusal")throw new Error("Claude declined this request (refusal)");
   if(stopReason==="max_tokens")onText("\n\n[truncated: hit max_tokens]");
   return text;
+}
+async function genImage(gkey,prompt,signal){
+  const r=await fetch(`${GEM_API}/models/${GEM_MODEL}:generateContent`,{method:"POST",signal,
+    headers:{"x-goog-api-key":gkey,"content-type":"application/json"},
+    body:JSON.stringify({contents:[{parts:[{text:prompt}]}]})});
+  if(!r.ok){
+    let m="HTTP "+r.status;
+    try{const e=await r.json();m=(e.error&&e.error.message)||m}catch(_){/* keep default */}
+    throw new Error(m);
+  }
+  const data=await r.json();
+  const parts=(((data.candidates||[])[0]||{}).content||{}).parts||[];
+  const img=parts.find(p=>p.inlineData&&p.inlineData.data);
+  if(!img)throw new Error("no image in the Gemini response");
+  usage.imgs+=1;usage.usd+=IMG_COST;meter();
+  return "data:"+(img.inlineData.mimeType||"image/png")+";base64,"+img.inlineData.data;
+}
+const HERO_JSON_SUFFIX="\n\nEnd your response with a fenced ```json code block containing exactly "+
+  '{"image_prompts": ["...", "...", "..."]} — the three text-to-image prompts, self-contained and '+
+  "faithful to the creative direction.";
+function extractImagePrompts(text){
+  const m=text.match(/```json\s*([\s\S]*?)```/);
+  if(!m)return null;
+  try{
+    const arr=JSON.parse(m[1]).image_prompts;
+    return Array.isArray(arr)&&arr.length?arr.slice(0,3).filter(p=>typeof p==="string"&&p.trim()):null;
+  }catch(_){return null}
+}
+async function renderHeroes(gkey,text,signal){
+  const prompts=extractImagePrompts(text);
+  const card=document.querySelector("#st-hero_images .scard");
+  if(!card)return;
+  if(!prompts){
+    $("runnote").textContent+=" (hero prompts not machine-readable — images skipped)";
+    return;
+  }
+  const wrap=document.createElement("div");
+  wrap.className="heroimgs";
+  card.appendChild(wrap);
+  for(let i=0;i<prompts.length;i++){
+    const fig=document.createElement("figure");
+    fig.innerHTML=`<figcaption><span>concept ${i+1} · rendering…</span></figcaption>`;
+    wrap.appendChild(fig);
+    try{
+      const src=await genImage(gkey,prompts[i],signal);
+      fig.innerHTML=`<img src="${src}" alt="Hero concept ${i+1}">
+        <figcaption><span>concept ${i+1} · ${GEM_MODEL}</span>
+        <a href="${src}" download="hero-${i+1}.png">download</a></figcaption>`;
+    }catch(e){
+      fig.innerHTML=`<figcaption><span>concept ${i+1} · failed: ${esc(e.message)}</span></figcaption>`;
+    }
+  }
 }
 
 /* ───────────── UI ───────────── */
@@ -299,7 +395,26 @@ function stagePrompt(stage,topic,arts){
 
 /* key handling */
 const saved=localStorage.getItem("j3os_key");
-if(saved){$("key").value=saved;setMode("key saved","Key loaded from this browser. Verify to go live.")}
+if(saved){$("key").value=saved;setMode("key saved","Anthropic key loaded from this browser. Verify to go live.")}
+const gsaved=localStorage.getItem("j3os_gkey");
+if(gsaved){$("gkey").value=gsaved;$("gkeynote").textContent="Gemini key loaded from this browser."}
+$("gforget").addEventListener("click",()=>{localStorage.removeItem("j3os_gkey");$("gkey").value="";
+  $("gkeynote").className="note";$("gkeynote").textContent="Gemini key removed from this browser."});
+$("gverify").addEventListener("click",async()=>{
+  const gkey=$("gkey").value.trim();
+  if(!gkey){$("gkeynote").className="note err";$("gkeynote").textContent="Paste a Gemini key first.";return}
+  $("gkeynote").className="note";$("gkeynote").textContent="Verifying against generativelanguage.googleapis.com …";
+  try{
+    const r=await fetch(`${GEM_API}/models/${GEM_MODEL}`,{headers:{"x-goog-api-key":gkey}});
+    if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error((e.error&&e.error.message)||("HTTP "+r.status))}
+    localStorage.setItem("j3os_gkey",gkey);
+    $("gkeynote").className="note ok";
+    $("gkeynote").textContent="Gemini key verified — hero concepts will render as images ("+GEM_MODEL+").";
+  }catch(e){
+    $("gkeynote").className="note err";
+    $("gkeynote").textContent="Gemini key check failed: "+e.message;
+  }
+});
 $("forget").addEventListener("click",()=>{localStorage.removeItem("j3os_key");$("key").value="";$("run").disabled=true;setMode("no key","Key removed from this browser.")});
 $("verify").addEventListener("click",async()=>{
   const key=$("key").value.trim();
@@ -324,25 +439,35 @@ $("run").addEventListener("click",async()=>{
   const keys=STAGES.map(s=>s.key).filter(k=>selected.has(k));
   if(!keys.length){$("runnote").textContent="Select at least one stage.";return}
   artifacts={};topicNow=topic;
-  usage.inp=0;usage.cache=0;usage.out=0;meter();
+  usage.inp=0;usage.cache=0;usage.out=0;usage.imgs=0;usage.usd=0;meter();
   $("meter").classList.add("show");$("after").classList.remove("show");
   buildTimeline(keys);
   $("run").disabled=true;$("stop").disabled=false;
-  $("runnote").className="note";$("runnote").textContent="Running live on "+MODEL+" …";
+  const orch=$("orch").checked, gkey=$("gkey").value.trim();
+  $("runnote").className="note";
+  $("runnote").textContent=orch
+    ?"Orchestrator mode: judgment → "+SHORT[MODEL]+", adaptation → "+SHORT[SONNET]+(gkey?", images → "+GEM_MODEL:"")+" …"
+    :"Running everything on "+SHORT[MODEL]+" …";
   abort=new AbortController();
   try{
     for(const k of keys){
       const stage=STAGES.find(s=>s.key===k);
+      const model=(orch&&stage.tier==="adapt")?SONNET:MODEL;
       const li=$("st-"+k);li.classList.add("run");
+      $("k-"+k).textContent=SHORT[model]+" · "+$("k-"+k).textContent;
       const pre=$("out-"+k);
-      const text=await streamMessage(key,stagePrompt(stage,topic,artifacts),stage.max,
-        d=>{pre.textContent+=d;pre.scrollTop=pre.scrollHeight;},abort.signal);
+      let prompt=stagePrompt(stage,topic,artifacts);
+      if(k==="hero_images"&&gkey)prompt+=HERO_JSON_SUFFIX;
+      const text=await streamMessage(key,prompt,stage.max,
+        d=>{pre.textContent+=d;pre.scrollTop=pre.scrollHeight;},abort.signal,model);
       artifacts[k]=text;
       li.classList.remove("run");li.classList.add("done");
       $("k-"+k).textContent+=" · "+text.length.toLocaleString()+" chars";
+      if(k==="hero_images"&&gkey)await renderHeroes(gkey,text,abort.signal);
     }
     $("runnote").className="note ok";
-    $("runnote").textContent="Asset kit complete — "+keys.length+" artifacts, est. $"+cost().toFixed(2)+".";
+    $("runnote").textContent="Asset kit complete — "+keys.length+" artifacts"
+      +(usage.imgs?", "+usage.imgs+" images":"")+", est. $"+usage.usd.toFixed(2)+".";
     $("after").classList.add("show");
   }catch(e){
     document.querySelectorAll("#tl li.run").forEach(li=>{li.classList.remove("run");li.classList.add("fail")});

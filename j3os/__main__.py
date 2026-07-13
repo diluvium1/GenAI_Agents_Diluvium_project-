@@ -62,7 +62,12 @@ def cmd_editorial(args: argparse.Namespace) -> int:
     brand = Brand.load(args.brand)
     stages = args.stages.split(",") if args.stages else None
     result = run_pipeline(
-        brand, args.topic, stages=stages, dry_run=args.dry_run, web_research=args.web
+        brand,
+        args.topic,
+        stages=stages,
+        dry_run=args.dry_run,
+        web_research=args.web,
+        orchestrate=args.orchestrate,
     )
     print(f"Wrote {len(result.artifacts)} artifacts to {result.output_dir}")
     for key in result.artifacts:
@@ -147,6 +152,12 @@ def main(argv: list[str] | None = None) -> int:
         "--dry-run",
         action="store_true",
         help="Render prompts without calling the Claude API",
+    )
+    p_ed.add_argument(
+        "--orchestrate",
+        action="store_true",
+        help="Route adaptation stages to the cheaper model tier "
+        "(judgment stays on Opus)",
     )
     p_ed.add_argument(
         "--web",

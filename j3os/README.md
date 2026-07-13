@@ -95,6 +95,16 @@ the API directly from the browser via Anthropic's CORS support
 (`anthropic-dangerous-direct-browser-access`). Host it anywhere static
 (GitHub Pages, Netlify) or just double-click the file.
 
+It also supports **orchestrator mode** (on by default): each stage routes to
+the cheapest model that meets its bar — judgment stages (research, brief,
+article, Amazon review, hero direction) on `claude-opus-4-8`, adaptation
+stages (SEO, newsletter, carousel, pins, email, scheduling) on
+`claude-sonnet-5`, and, with an optional **Gemini API key**, the three hero
+concepts render as actual images (`gemini-2.5-flash-image`) with downloads.
+The cost meter prices each call at its own model's rates. The same routing
+is available in the CLI: `python -m j3os editorial <brand> --topic "..."
+--orchestrate`.
+
 ## Grading & batch production
 
 ```bash
