@@ -165,3 +165,6 @@ cython_debug/
 
 .gitignore
 
+
+# J3OS generated artifacts
+j3os/brands/*/output/
