@@ -30,6 +30,7 @@ class PipelineStage:
     title: str
     instructions: str   # what this stage must produce
     max_tokens: int = 16000
+    web_search: bool = False  # ground this stage with live web search when enabled
 
 
 PIPELINE: list[PipelineStage] = [
@@ -44,6 +45,7 @@ PIPELINE: list[PipelineStage] = [
             "brand's editorial pillars. Cite reasoning, flag uncertainty, and "
             "end with the 3 strongest angles ranked."
         ),
+        web_search=True,
     ),
     PipelineStage(
         key="brief",
@@ -187,6 +189,7 @@ def run_pipeline(
     dry_run: bool | None = None,
     output_root: Path | None = None,
     progress: ProgressCallback = None,
+    web_research: bool = False,
 ) -> PipelineResult:
     """Run the editorial pipeline for a topic, writing each artifact to
     the brand's output directory as markdown.
@@ -196,6 +199,10 @@ def run_pipeline(
     deltas) / ``stage_completed``, and finally ``run_completed``. A
     ``manifest.json`` is written to the output dir and updated after every
     stage, so a crashed run still leaves a partial manifest.
+
+    ``web_research``, when True, enables live web-search grounding for the
+    stages that opt into it (those with ``stage.web_search``). When False
+    (the default) no stage uses web search.
     """
     selected = stages or STAGE_KEYS
     unknown = set(selected) - set(STAGE_KEYS)
@@ -221,6 +228,7 @@ def run_pipeline(
         "topic": topic,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "dry_run": resolved_dry_run,
+        "web_research": bool(web_research),
         "stages": [],
     }
 
@@ -264,6 +272,7 @@ def run_pipeline(
             dry_run=dry_run,
             max_tokens=stage.max_tokens,
             on_text=on_text,
+            web_search=web_research and stage.web_search,
         )
         result.artifacts[stage.key] = content
         filename = f"{index:02d}_{stage.key}.md"

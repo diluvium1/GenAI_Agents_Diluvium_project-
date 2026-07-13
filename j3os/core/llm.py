@@ -33,6 +33,7 @@ def generate(
     dry_run: bool | None = None,
     max_tokens: int = MAX_TOKENS,
     on_text: Optional[Callable[[str], None]] = None,
+    web_search: bool = False,
 ) -> str:
     """Run one generation grounded in the brand knowledge system prompt.
 
@@ -40,9 +41,19 @@ def generate(
     text delta as the response streams from the API, so a caller can surface
     progress live. In dry-run mode it is called once with the full rendered
     string.
+
+    When ``web_search`` is True the call is grounded with Claude's server-side
+    web search tool (``web_search_20260209``), letting the model look things up
+    live. This requires a live API key; it has no effect in dry-run mode beyond
+    noting that it was enabled. Because a web-search turn can pause for tool use
+    (``stop_reason == "pause_turn"``), the stream is resumed until the model
+    finishes (capped at a handful of continuations), and text is accumulated
+    across every continuation.
     """
     if dry_run if dry_run is not None else is_dry_run():
         text = f"[dry-run]\n--- system ---\n{system}\n--- prompt ---\n{prompt}"
+        if web_search:
+            text += "\n[web-search: enabled]"
         if on_text is not None:
             on_text(text)
         return text
@@ -50,29 +61,59 @@ def generate(
     import anthropic
 
     client = anthropic.Anthropic()
-    with client.messages.stream(
-        model=MODEL,
-        max_tokens=max_tokens,
-        thinking={"type": "adaptive"},
-        system=[
-            {
-                "type": "text",
-                "text": system,
-                # Knowledge context is identical across pipeline stages;
-                # 1h TTL keeps it warm for a whole production run.
-                "cache_control": {"type": "ephemeral", "ttl": "1h"},
-            }
-        ],
-        messages=[{"role": "user", "content": prompt}],
-    ) as stream:
-        chunks: list[str] = []
-        for delta in stream.text_stream:
-            chunks.append(delta)
-            if on_text is not None:
-                on_text(delta)
-        message = stream.get_final_message()
 
-    if message.stop_reason == "refusal":
-        raise RuntimeError("Claude declined this request (stop_reason=refusal)")
+    tools = None
+    if web_search:
+        tools = [
+            {
+                "type": "web_search_20260209",
+                "name": "web_search",
+                "max_uses": 5,
+            }
+        ]
+
+    system_block = [
+        {
+            "type": "text",
+            "text": system,
+            # Knowledge context is identical across pipeline stages;
+            # 1h TTL keeps it warm for a whole production run.
+            "cache_control": {"type": "ephemeral", "ttl": "1h"},
+        }
+    ]
+
+    messages: list[dict] = [{"role": "user", "content": prompt}]
+    chunks: list[str] = []
+
+    # A web-search turn can pause for server-side tool use; resume the stream
+    # until the model stops pausing, capping the number of continuations.
+    for _ in range(6):
+        stream_kwargs = dict(
+            model=MODEL,
+            max_tokens=max_tokens,
+            thinking={"type": "adaptive"},
+            system=system_block,
+            messages=messages,
+        )
+        if tools is not None:
+            stream_kwargs["tools"] = tools
+
+        with client.messages.stream(**stream_kwargs) as stream:
+            for delta in stream.text_stream:
+                chunks.append(delta)
+                if on_text is not None:
+                    on_text(delta)
+            message = stream.get_final_message()
+
+        if message.stop_reason == "refusal":
+            raise RuntimeError(
+                "Claude declined this request (stop_reason=refusal)"
+            )
+
+        if message.stop_reason == "pause_turn":
+            messages.append({"role": "assistant", "content": message.content})
+            continue
+
+        break
 
     return "".join(chunks)
