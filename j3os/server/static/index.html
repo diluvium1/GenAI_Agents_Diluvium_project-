@@ -134,15 +134,33 @@
       <span class="mode" id="mode">connecting…</span>
     </div>
     <nav>
-      <button class="on" data-v="prod">Production</button>
+      <button class="on" data-v="overview">Overview</button>
+      <button data-v="prod">Production</button>
       <button data-v="knowledge">Knowledge</button>
       <button data-v="runs">Runs</button>
+      <button data-v="plan">Build Loop</button>
     </nav>
   </header>
   <main>
     <div class="banner" id="banner">Server not reachable — start it with <span style="font-family:var(--mono)">python -m j3os serve</span></div>
 
-    <section class="view on" id="v-prod">
+    <section class="view on" id="v-overview">
+      <h2 class="vt">Every future company plugs into this.</h2>
+      <p class="lede">Glass &amp; Counsel is the first reference implementation of the J3 Operating System —
+      shared core, pluggable engines, per-brand knowledge.</p>
+      <div class="scard" style="margin-bottom:28px"><pre style="margin:0;background:var(--code);padding:22px 24px;font-family:var(--mono);font-size:12.5px;line-height:1.7;color:var(--muted);overflow-x:auto">                    J3OS
+                     │
+    ┌────────────────┼────────────────┐
+    │                │                │
+ Brand Engine   Editorial Engine   Commerce Engine
+    │                │                │
+ Design Engine  Knowledge Engine  Automation Engine
+    │                │                │
+        Analytics + AI Studio + Research</pre></div>
+      <ul class="runslist" id="enginelist"></ul>
+    </section>
+
+    <section class="view" id="v-prod">
       <h2 class="vt">Run the editorial pipeline.</h2>
       <p class="lede">One topic in, a full multi-channel asset kit out — streamed live, stage by stage,
       grounded in the brand knowledge base.</p>
@@ -160,6 +178,13 @@
         </div>
         <div class="drywrap">
           <input type="checkbox" id="dry"><label for="dry">Dry run (render prompts only — no tokens spent)</label>
+        </div>
+        <div class="drywrap">
+          <input type="checkbox" id="orch" checked><label for="orch">Orchestrator mode — judgment stages on
+          Opus 4.8, adaptation stages on Sonnet 5</label>
+        </div>
+        <div class="drywrap">
+          <input type="checkbox" id="webr"><label for="webr">Web-search-grounded research (live key required)</label>
         </div>
         <p class="drynote" id="drynote"></p>
       </div>
@@ -184,6 +209,14 @@
       <p class="lede">Every run this server has executed. Select one to replay its full event stream.</p>
       <ul class="runslist" id="runslist"></ul>
     </section>
+
+    <section class="view" id="v-plan">
+      <h2 class="vt">The build loop.</h2>
+      <p class="lede">Pick the next milestone → build → test offline → run one live generation → commit →
+      push → review output quality → feed learnings back into the knowledge base. Source of truth:
+      <span style="font-family:var(--mono);font-size:12px">docs/J3OS_ORCHESTRATION_PLAN.md</span>.</p>
+      <div id="loops"></div>
+    </section>
   </main>
   <footer>
     <span>J3OS live console</span><span>Never loud. Never trendy. Always timeless.</span>
@@ -194,7 +227,36 @@
 "use strict";
 const $=id=>document.getElementById(id);
 const esc=s=>s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+const SHORT={"claude-opus-4-8":"opus 4.8","claude-sonnet-5":"sonnet 5"};
 let STATUS=null, STAGES=[], BRAND=null, selected=new Set(), DOCS=[], curDoc=0, activeES=null;
+
+const LOOPS=[
+ ["Loop 1 — Foundation ✓",[
+  [1,"Canonical Glass & Counsel knowledge base (00_PROJECT … 08_ROADMAP)"],
+  [1,"Core: Brand, Engine contract, registry, shared Claude client"],
+  [1,"System 01 — Brand Knowledge Engine"],
+  [1,"System 02 — Editorial Production Engine (11 stages, dry-run mode)"],
+  [1,"CLI, offline test suite, planned-engine stubs"]]],
+ ["Loop 2 — Editorial hardening ✓",[
+  [1,"Live web console: FastAPI + SSE streaming with per-stage progress"],
+  [1,"Grading engine (review.py + grade CLI)"],
+  [1,"Web-search-grounded research stage (--web)"],
+  [1,"Batch calendar mode via the Batches API at 50% cost"],
+  [1,"Zero-install web app + multi-provider orchestrator (Opus/Sonnet/Gemini)"],
+  [0,"Run + grade 3 real topics with a live key"]]],
+ ["Loop 3 — Commerce + Automation",[
+  [0,"Commerce Engine: product catalog, affiliate links, disclosure blocks"],
+  [0,"Automation Engine: scheduling_queue artifacts → real queue entries"],
+  [0,"Brand Engine: new-brand bootstrap interviewing for the 9 canonical docs"]]],
+ ["Loop 4 — Design + Analytics",[
+  [0,"Design Engine: hero-image prompts → image generation workflow"],
+  [0,"Analytics Engine: per-artifact performance log, content scoring"],
+  [0,"AI Studio: interactive session grounded in the knowledge context"],
+  [0,"Research Engine: standing research writing back into knowledge/"]]],
+ ["Loop 5 — Multi-brand validation",[
+  [0,"Onboard a second brand (Launchly / Praxis) with zero code changes"],
+  [0,"Extract brand-specific leakage from engines back into knowledge docs"]]],
+];
 
 /* nav */
 document.querySelectorAll("nav button").forEach(b=>b.addEventListener("click",()=>{
@@ -221,6 +283,16 @@ async function boot(){
     : "No API key detected on the server — dry run renders the grounded prompts only.";
   selected=new Set(STAGES.map(s=>s.key));
   drawPicks();
+  $("enginelist").innerHTML=STATUS.engines.map(e=>`<li><button disabled style="cursor:default">
+    <span><span class="t">${esc(e.name.replace("_"," "))} engine</span><br>
+    <span class="meta">${esc(e.description)}</span></span>
+    <span class="st ${e.status==="active"?"completed":""}">${e.status}</span></button></li>`).join("");
+  $("loops").innerHTML=LOOPS.map(l=>{
+    const done=l[1].filter(x=>x[0]).length;
+    return `<div class="scard" style="margin-bottom:14px">
+      <div class="shead"><h3>${esc(l[0])}</h3><span class="skey">${done} / ${l[1].length}</span></div>
+      <div class="sout" style="display:block"><pre style="max-height:none">${l[1].map(x=>(x[0]?"[x] ":"[ ] ")+x[1]).map(esc).join("\n")}</pre></div>
+    </div>`}).join("");
   const docs=await (await fetch("/api/knowledge/"+BRAND.slug)).json();
   DOCS=docs.docs; drawDocList(); drawDoc();
 }
@@ -262,6 +334,8 @@ function attach(jobId,keys){
     const ev=JSON.parse(m.data);
     if(ev.event==="stage_started"){
       const li=$("st-"+ev.stage); if(li)li.classList.add("run");
+      if(ev.model){const k=$("k-"+ev.stage);if(k&&!k.dataset.mdl){k.dataset.mdl="1";
+        k.textContent=(SHORT[ev.model]||ev.model)+" · "+k.textContent;}}
     }else if(ev.event==="text"){
       const pre=$("out-"+ev.stage);
       if(pre){pre.textContent+=ev.delta; pre.scrollTop=pre.scrollHeight;}
@@ -289,7 +363,8 @@ $("run").addEventListener("click",async()=>{
   const keys=STAGES.map(s=>s.key).filter(k=>selected.has(k));
   try{
     const r=await fetch("/api/runs",{method:"POST",headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({brand:BRAND.slug,topic,stages:keys,dry_run:$("dry").checked})});
+      body:JSON.stringify({brand:BRAND.slug,topic,stages:keys,dry_run:$("dry").checked,
+        orchestrate:$("orch").checked,web_research:$("webr").checked})});
     if(!r.ok){const d=await r.json();throw new Error(d.detail||r.status);}
     const job=await r.json();
     attach(job.job_id,keys);

@@ -83,6 +83,39 @@ def test_run_lifecycle_and_sse(client, tmp_path, monkeypatch):
     assert job_id in [r["id"] for r in runs]
 
 
+def test_orchestrate_passthrough_and_model_events(client, tmp_path, monkeypatch):
+    import j3os.core.brand as brand_mod
+    from j3os.core import llm
+
+    monkeypatch.setattr(
+        brand_mod.Brand, "output_dir", property(lambda self: tmp_path / "out")
+    )
+    resp = client.post(
+        "/api/runs",
+        json={
+            "brand": GC,
+            "topic": "routing",
+            "stages": ["research", "seo_outline"],
+            "dry_run": True,
+            "orchestrate": True,
+        },
+    )
+    job_id = resp.json()["job_id"]
+    assert resp.json()["orchestrate"] is True
+
+    events = []
+    with client.stream("GET", f"/api/runs/{job_id}/events?start=0") as stream:
+        for line in stream.iter_lines():
+            if line.startswith("data: "):
+                events.append(json.loads(line[6:]))
+                if events[-1]["event"] == "job_done":
+                    break
+    started = {e["stage"]: e for e in events if e["event"] == "stage_started"}
+    assert started["research"]["model"] == llm.MODEL       # judgment tier
+    assert started["seo_outline"]["model"] == llm.ADAPT_MODEL  # adapt tier
+    assert started["research"]["tier"] == "judgment"
+
+
 def test_validation_errors(client):
     assert client.post(
         "/api/runs", json={"brand": "nope", "topic": "x", "dry_run": True}

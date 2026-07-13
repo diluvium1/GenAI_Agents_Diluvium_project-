@@ -261,12 +261,17 @@ def run_pipeline(
     for index, stage in enumerate(PIPELINE, start=1):
         if stage.key not in selected:
             continue
+        stage_model = (
+            llm.ADAPT_MODEL if orchestrate and stage.tier == "adapt" else None
+        )
         emit(
             {
                 "event": "stage_started",
                 "stage": stage.key,
                 "index": index,
                 "title": stage.title,
+                "tier": stage.tier,
+                "model": stage_model or llm.MODEL,
             }
         )
         on_text = None
@@ -274,9 +279,6 @@ def run_pipeline(
             on_text = lambda delta, key=stage.key: emit(
                 {"event": "text", "stage": key, "delta": delta}
             )
-        stage_model = (
-            llm.ADAPT_MODEL if orchestrate and stage.tier == "adapt" else None
-        )
         prompt = _stage_prompt(stage, topic, result.artifacts)
         content = llm.generate(
             system,

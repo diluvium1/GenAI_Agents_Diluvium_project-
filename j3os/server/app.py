@@ -38,6 +38,8 @@ class RunRequest(BaseModel):
     topic: str
     stages: list[str] | None = None
     dry_run: bool | None = None
+    web_research: bool = False
+    orchestrate: bool = False
 
 
 @app.get("/")
@@ -95,7 +97,14 @@ def create_run(req: RunRequest):
         raise HTTPException(status_code=422, detail="Topic must not be empty")
     dry_run = req.dry_run if req.dry_run is not None else not _live_capable()
     try:
-        job = manager.start(req.brand, topic, stages=req.stages, dry_run=dry_run)
+        job = manager.start(
+            req.brand,
+            topic,
+            stages=req.stages,
+            dry_run=dry_run,
+            web_research=req.web_research,
+            orchestrate=req.orchestrate,
+        )
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail=f"Unknown brand '{req.brand}'")
     except ValueError as exc:  # unknown stage keys

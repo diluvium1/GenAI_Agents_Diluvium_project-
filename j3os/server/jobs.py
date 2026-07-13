@@ -25,6 +25,8 @@ class Job:
     topic: str
     stages: list[str] | None
     dry_run: bool
+    web_research: bool = False
+    orchestrate: bool = False
     status: str = "running"  # running | completed | failed
     error: str | None = None
     created_at: str = field(
@@ -47,6 +49,8 @@ class Job:
             "topic": self.topic,
             "stages": self.stages,
             "dry_run": self.dry_run,
+            "web_research": self.web_research,
+            "orchestrate": self.orchestrate,
             "status": self.status,
             "error": self.error,
             "created_at": self.created_at,
@@ -65,6 +69,8 @@ class JobManager:
         topic: str,
         stages: list[str] | None = None,
         dry_run: bool = True,
+        web_research: bool = False,
+        orchestrate: bool = False,
     ) -> Job:
         brand = Brand.load(brand_slug)  # raises FileNotFoundError for unknown brand
         unknown = set(stages or []) - set(STAGE_KEYS)
@@ -76,6 +82,8 @@ class JobManager:
             topic=topic,
             stages=stages,
             dry_run=dry_run,
+            web_research=web_research,
+            orchestrate=orchestrate,
         )
         with self._lock:
             self._jobs[job.id] = job
@@ -87,6 +95,8 @@ class JobManager:
                     topic,
                     stages=stages,
                     dry_run=dry_run,
+                    web_research=web_research,
+                    orchestrate=orchestrate,
                     progress=job.append_event,
                 )
             except Exception as exc:  # surface any failure to the stream
